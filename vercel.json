@@ -3,10 +3,6 @@
     {
       "path": "/api/send-brief",
       "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/refresh-data",
-      "schedule": "0 * * * *"
     }
   ]
 }
