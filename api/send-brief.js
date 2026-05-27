@@ -7,8 +7,8 @@
 import { Resend } from 'resend'
 import { news, synthesis, weekRange, publishedAt } from '../src/data.js'
 
-const TO      = ['mikexiangwang@gmail.com']   // add more emails once domain is verified
-const FROM    = 'Analyst Brief <onboarding@resend.dev>'   // revert until exploring-china.com is verified
+const TO      = ['mikexiangwang@gmail.com', 'xiangwang0083@gmail.com']
+const FROM    = 'Analyst Brief <brief@exploring-china.com>'
 
 // ── category colours (email-safe inline styles) ──────────────────────────────
 const CAT_STYLE = {
