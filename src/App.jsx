@@ -1,8 +1,8 @@
-import { useState, useMemo, createContext, useContext, useCallback } from 'react'
+import { useState, useMemo, createContext, useContext, useCallback, useEffect } from 'react'
 import {
   Brain, Cpu, TrendingUp, Flame, ChevronDown, ChevronUp,
   Calendar, RefreshCw, Zap, Globe, BarChart2, Shield,
-  Star, ArrowUpRight, AlertTriangle,
+  Star, ArrowUpRight, AlertTriangle, Mail, CheckCircle, XCircle,
 } from 'lucide-react'
 import { news, synthesis, weekRange, publishedAt, categoryMeta } from './data.js'
 import { i18n, LANG_KEY } from './i18n.js'
@@ -287,6 +287,45 @@ function StatsBar() {
 
 function Header({ lang, setLang }) {
   const { t } = useLang()
+  const [online, setOnline]         = useState(navigator.onLine)
+  const [refreshing, setRefreshing] = useState(false)
+  const [emailStatus, setEmailStatus] = useState(null) // null | 'sending' | 'ok' | 'err'
+
+  // track real online/offline status
+  useEffect(() => {
+    const on  = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online',  on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+
+  // refresh with animation
+  const handleRefresh = () => {
+    setRefreshing(true)
+    setTimeout(() => window.location.reload(), 400)
+  }
+
+  // send brief email via API
+  const handleEmail = async () => {
+    if (emailStatus === 'sending') return
+    setEmailStatus('sending')
+    try {
+      const res = await fetch('/api/send-brief', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang }) })
+      if (!res.ok) throw new Error(await res.text())
+      setEmailStatus('ok')
+      setTimeout(() => setEmailStatus(null), 3500)
+    } catch (e) {
+      console.error(e)
+      setEmailStatus('err')
+      setTimeout(() => setEmailStatus(null), 3500)
+    }
+  }
+
+  const liveLabel  = online
+    ? (lang === 'zh' ? '实时在线' : 'Live')
+    : (lang === 'zh' ? '已离线'   : 'Offline')
+
   return (
     <header className="sticky top-0 z-30 bg-surface-base/90 backdrop-blur-xl
                        border-b border-surface-line safe-top">
@@ -304,12 +343,30 @@ function Header({ lang, setLang }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* live indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-600">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-slow" />
-            {t.live}
+        <div className="flex items-center gap-1.5">
+          {/* real live/offline indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 text-xs mr-1
+                          px-2 py-1 rounded-full bg-surface-card border border-surface-line
+                          text-slate-500">
+            <span className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-emerald-400 animate-pulse-slow' : 'bg-red-500'}`} />
+            {liveLabel}
           </div>
+
+          {/* send email */}
+          <button
+            onClick={handleEmail}
+            title={lang === 'zh' ? '发送简报到邮箱' : 'Email brief'}
+            className={`p-2 rounded-lg border transition-all duration-200
+              ${emailStatus === 'ok'  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' :
+                emailStatus === 'err' ? 'bg-red-500/20     border-red-500/40     text-red-400'     :
+                emailStatus === 'sending' ? 'bg-surface-card border-surface-line text-ai animate-pulse' :
+                'bg-surface-card border-surface-line text-slate-500 hover:text-slate-300'}`}
+          >
+            {emailStatus === 'ok'  ? <CheckCircle size={13} /> :
+             emailStatus === 'err' ? <XCircle     size={13} /> :
+             <Mail size={13} />}
+          </button>
+
           {/* language toggle */}
           <button
             onClick={() => setLang(l => {
@@ -323,9 +380,15 @@ function Header({ lang, setLang }) {
           >
             {t.langToggle}
           </button>
-          <button className="p-2 rounded-lg bg-surface-card border border-surface-line
-                             text-slate-500 hover:text-slate-300 transition-colors">
-            <RefreshCw size={13} />
+
+          {/* refresh — actually reloads */}
+          <button
+            onClick={handleRefresh}
+            title={lang === 'zh' ? '刷新页面' : 'Refresh'}
+            className="p-2 rounded-lg bg-surface-card border border-surface-line
+                       text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
