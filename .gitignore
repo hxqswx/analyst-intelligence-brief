@@ -9,3 +9,5 @@ dist-ssr/
 Thumbs.db
 *.log
 .vite/
+
+.vercel
