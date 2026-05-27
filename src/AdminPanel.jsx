@@ -3,6 +3,8 @@ import { GoogleLogin } from '@react-oauth/google'
 import { X, Plus, Mail, Shield, LogOut, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { LangCtx } from './context.js'
 
+const SESSION_KEY = 'aib-admin-session'
+
 // decode Google JWT payload (client-side, no signature check)
 function decodeJWT(token) {
   try {
@@ -25,6 +27,23 @@ export default function AdminPanel({ onClose, onRefresh }) {
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
   const ADMIN_EMAIL      = import.meta.env.VITE_ADMIN_EMAIL
 
+  // ── restore session on mount ──────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY)
+      if (!saved) return
+      const { user: u, credential: c } = JSON.parse(saved)
+      // reject if JWT has expired
+      if (u?.exp && u.exp < Math.floor(Date.now() / 1000)) {
+        sessionStorage.removeItem(SESSION_KEY)
+        return
+      }
+      setUser(u)
+      setCredential(c)
+      setIsAdmin(true)
+    } catch {}
+  }, [])
+
   useEffect(() => {
     if (isAdmin) fetchRecipients()
   }, [isAdmin])
@@ -40,6 +59,8 @@ export default function AdminPanel({ onClose, onRefresh }) {
     setCredential(resp.credential)
     setIsAdmin(true)
     setMsg({ text: '', ok: true })
+    // persist for this browser session
+    try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user: decoded, credential: resp.credential })) } catch {}
   }
 
   // ── recipient CRUD ────────────────────────────────────────────────────────
@@ -118,6 +139,7 @@ export default function AdminPanel({ onClose, onRefresh }) {
     setCredential(null)
     setRecipients([])
     setMsg({ text: '', ok: true })
+    try { sessionStorage.removeItem(SESSION_KEY) } catch {}
   }
 
   // ── render ────────────────────────────────────────────────────────────────

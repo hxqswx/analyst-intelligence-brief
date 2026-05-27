@@ -295,7 +295,7 @@ export default async function handler(req, res) {
     if (error) throw new Error(JSON.stringify(error))
 
     console.log('[send-brief] sent →', data?.id)
-    return res.status(200).json({ ok: true, id: data?.id, to: TO, week: weekRange })
+    return res.status(200).json({ ok: true, id: data?.id, to: toList, week: weekRange })
   } catch (err) {
     console.error('[send-brief] error:', err.message)
     return res.status(500).json({ error: err.message })
