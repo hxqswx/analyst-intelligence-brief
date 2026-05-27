@@ -118,6 +118,56 @@ export const chinaNews = [
     },
   },
   {
+    id: 16, rank: 6,
+    category: "Technology",
+    region: "china",
+    date: "May 23, 2026",
+    impact: "High",
+    sources: [
+      { name: "华为官网",    url: "https://huawei.com" },
+      { name: "财新网",      url: "https://caixin.com" },
+      { name: "Nikkei Asia", url: "https://asia.nikkei.com" },
+    ],
+    tags: ["华为", "昇腾910C", "AI芯片", "半导体自主"],
+    title: {
+      en: "Huawei Ascend 910C Begins Volume Production — Benchmarks Within 15% of H100",
+      zh: "华为昇腾 910C 进入量产，性能评测与 H100 差距缩至 15%",
+    },
+    summary: {
+      en: "Huawei confirmed volume production of Ascend 910C, its most advanced AI training chip to date, with delivery to 14 major Chinese cloud and enterprise clients. Independent benchmarks place the chip within 15% of NVIDIA H100 on transformer training workloads. Production yield has improved to 68%, up from 41% in Q3 2025.",
+      zh: "华为确认昇腾 910C 进入量产，这是其迄今最先进的 AI 训练芯片，已向 14 家主要中国云和企业客户交付。独立基准测试显示，该芯片在 Transformer 训练负载上与英伟达 H100 的性能差距已缩小至 15%。量产良率从 2025 年三季度的 41% 提升至 68%。",
+    },
+    whyItMatters: {
+      en: "Ascend 910C's ramp validates China's domestic semiconductor strategy despite US export controls. A 15% performance gap versus H100 is operationally viable for most training workloads. With TSMC-manufactured chips blocked, Huawei's SMIC-based production proves that sufficient capability can be achieved domestically. This materially reduces China's AI infrastructure dependency on foreign silicon.",
+      zh: "昇腾 910C 的量产验证了中国在美国出口管制下的半导体自主化战略。与 H100 差距 15% 的性能对绝大多数训练负载在业务上已可接受。在台积电制造的芯片被封堵后，华为依托中芯国际的量产证明了国内具备实现足够能力的条件，从实质上降低了中国 AI 基础设施对境外芯片的依赖。",
+    },
+  },
+  {
+    id: 17, rank: 7,
+    category: "AI",
+    region: "china",
+    date: "May 25, 2026",
+    impact: "Medium",
+    sources: [
+      { name: "阿里云官网",  url: "https://aliyun.com" },
+      { name: "36氪",        url: "https://36kr.com" },
+      { name: "Bloomberg",   url: "https://bloomberg.com" },
+    ],
+    tags: ["阿里", "通义千问", "Qwen3", "多模态"],
+    title: {
+      en: "Alibaba Qwen3-235B Tops Global Open-Source Leaderboard, Beats GPT-4o on Vision",
+      zh: "阿里通义千问 Qwen3-235B 登顶全球开源榜，视觉能力超越 GPT-4o",
+    },
+    summary: {
+      en: "Alibaba Cloud released Qwen3-235B, which topped the Hugging Face Open LLM Leaderboard and outperformed GPT-4o on vision-language benchmarks. The model achieves near-parity with GPT-4.5 on reasoning and coding tasks. Alibaba made all Qwen3 variants free for commercial use under an Apache 2.0 license.",
+      zh: "阿里云发布 Qwen3-235B，登顶 Hugging Face 开源大模型榜单，并在视觉语言基准测试中超越 GPT-4o。该模型在推理和编程任务上与 GPT-4.5 接近持平。阿里将所有 Qwen3 版本均以 Apache 2.0 许可证免费商业使用。",
+    },
+    whyItMatters: {
+      en: "Qwen3's open-source release under Apache 2.0 accelerates global adoption while establishing Alibaba Cloud as a serious infrastructure provider. For enterprises in markets unwilling to commit to US AI vendors, Qwen3 provides a credible frontier alternative. The vision benchmark result is particularly notable: it challenges the narrative that Chinese models lag in multimodal capability.",
+      zh: "Qwen3 以 Apache 2.0 协议开源加速了全球采用，同时确立了阿里云作为重要基础设施提供商的地位。对于不愿绑定美国 AI 厂商的市场中的企业，Qwen3 提供了可信的前沿替代方案。视觉基准结果尤为值得关注：它挑战了中国模型在多模态能力上落后的说法。",
+    },
+  },
+  {
     id: 15, rank: 5,
     category: "Finance",
     region: "china",
@@ -394,6 +444,81 @@ export const overseasNews = [
     whyItMatters: {
       en: "AlphaFold 4 is the clearest demonstration to date that AI is delivering transformative, measurable scientific value. Pharma stocks (Pfizer, Roche, Moderna) moved 3–8% on the news. It also signals that AI's most significant near-term GDP impact may come from healthcare and biotech rather than software productivity.",
       zh: "AlphaFold 4 是迄今为止 AI 带来可量化、可变革科学价值最清晰的证明。大型药企股票（辉瑞、罗氏、Moderna）因此消息上涨 3-8%。它还预示着 AI 在近期内最显著的 GDP 影响可能来自医疗健康和生物技术，而非软件生产力。",
+    },
+  },
+  {
+    id: 11, rank: 11,
+    category: "AI",
+    region: "overseas",
+    date: "May 24, 2026",
+    impact: "High",
+    sources: [
+      { name: "Meta AI Blog",  url: "https://ai.meta.com/blog" },
+      { name: "The Verge",     url: "https://theverge.com" },
+      { name: "VentureBeat",   url: "https://venturebeat.com" },
+    ],
+    tags: ["Meta", "Llama 4", "Open Source", "Multimodal"],
+    title: {
+      en: "Meta Releases Llama 4 Scout & Maverick — Open Multimodal Models Top Safety Benchmarks",
+      zh: "Meta 发布 Llama 4 Scout 与 Maverick，开源多模态模型安全基准登顶",
+    },
+    summary: {
+      en: "Meta released Llama 4 Scout (17B active / 109B total MoE) and Maverick (17B active / 400B total), both natively multimodal with 10M-token context. Maverick outperforms GPT-4o and Gemini 2.0 Flash on safety benchmarks while remaining fully open-weight. Download counts exceeded 2M within the first 72 hours.",
+      zh: "Meta 发布 Llama 4 Scout（170 亿活跃参数 / 1090 亿总参数 MoE）和 Maverick（170 亿活跃参数 / 4000 亿总参数），两者均原生支持多模态输入和 1000 万 Token 上下文。Maverick 在安全基准测试中超越 GPT-4o 和 Gemini 2.0 Flash，同时保持完全开放权重。发布后 72 小时内下载量突破 200 万次。",
+    },
+    whyItMatters: {
+      en: "Llama 4's release keeps frontier open-source AI competitive with proprietary models, preserving an alternative ecosystem to OpenAI and Anthropic's closed APIs. Meta's strategy of maximising developer adoption over direct monetisation is paying off — Llama is now embedded in thousands of enterprise AI pipelines, creating structural dependence that reinforces Meta's platform ambitions.",
+      zh: "Llama 4 的发布使前沿开源 AI 与专有模型保持竞争力，维持了对抗 OpenAI 和 Anthropic 封闭 API 的替代生态。Meta 优先最大化开发者采用而非直接商业化的策略正在奏效——Llama 已嵌入数千条企业 AI 流水线，创造出强化 Meta 平台野心的结构性依赖。",
+    },
+  },
+  {
+    id: 12, rank: 12,
+    category: "Technology",
+    region: "overseas",
+    date: "May 22, 2026",
+    impact: "Medium",
+    sources: [
+      { name: "Alan Turing Institute", url: "https://www.turing.ac.uk/news" },
+      { name: "DSIT Gov UK",           url: "https://www.gov.uk/dsit" },
+      { name: "Financial Times",       url: "https://ft.com" },
+    ],
+    tags: ["UK AI", "Government", "Compute", "Policy"],
+    title: {
+      en: "UK Commits £3.2B to National AI Research Resource — Alan Turing Institute Gets Supercompute Hub",
+      zh: "英国承诺投入 32 亿英镑国家 AI 算力，艾伦·图灵研究所获超算中心",
+    },
+    summary: {
+      en: "The UK government confirmed a £3.2B AI Opportunities Action Plan investment, including a dedicated national supercompute hub hosted at the Alan Turing Institute. The facility will offer subsidised compute access to UK universities and startups. DSIT cited the initiative as central to closing the compute gap with the US and EU.",
+      zh: "英国政府确认 32 亿英镑 AI 机遇行动计划投资，其中包括在艾伦·图灵研究所托管专属国家超算中心。该设施将向英国高校和初创企业提供补贴算力接入。科学、创新和技术部将此举定位为弥合英国与美欧算力差距的核心举措。",
+    },
+    whyItMatters: {
+      en: "The UK's targeted investment signals a deliberate pivot from regulator to infrastructure builder — a recognition that competitiveness requires sovereign compute capacity, not just regulatory frameworks. For global AI researchers and startups, the Alan Turing Institute's subsidised compute becomes a genuine alternative to US hyperscaler dependency, potentially reshaping where frontier AI research is conducted.",
+      zh: "英国的定向投资标志着其从监管者到基础设施建设者的刻意转型——意识到竞争力需要主权算力，而不仅仅是监管框架。对全球 AI 研究者和初创企业而言，艾伦·图灵研究所的补贴算力成为对抗美国超大规模云厂商依赖的真实替代选项，有望重塑前沿 AI 研究的地域格局。",
+    },
+  },
+  {
+    id: 13, rank: 13,
+    category: "Finance",
+    region: "overseas",
+    date: "May 26, 2026",
+    impact: "Medium",
+    sources: [
+      { name: "PitchBook",     url: "https://pitchbook.com" },
+      { name: "Crunchbase",    url: "https://crunchbase.com" },
+      { name: "Bloomberg",     url: "https://bloomberg.com" },
+    ],
+    tags: ["VC", "AI Startups", "Funding", "Valuation"],
+    title: {
+      en: "AI Startup Funding Hits $47B in Q1 2026 — Valuation Multiples Compress for Series B+",
+      zh: "AI 初创公司 2026 年一季度融资 470 亿美元，B 轮以上估值倍数收缩",
+    },
+    summary: {
+      en: "PitchBook data shows global AI startup funding reached $47B in Q1 2026, up 31% year-over-year, but median Series B+ revenue multiples compressed from 28× to 19× as investors demand clearer paths to profitability. Seed and Series A rounds remain buoyant. Infrastructure and vertical AI applications command the highest valuations; horizontal LLM wrappers face a funding winter.",
+      zh: "PitchBook 数据显示，2026 年一季度全球 AI 初创融资达 470 亿美元，同比增长 31%，但随着投资者要求更清晰的盈利路径，B 轮以上中位数收入倍数从 28 倍压缩至 19 倍。种子轮和 A 轮保持活跃。基础设施和垂直 AI 应用估值最高；横向大模型封装公司面临资本寒冬。",
+    },
+    whyItMatters: {
+      en: "The funding landscape bifurcation reflects maturing investor sophistication: AI infrastructure (data, compute, tooling) and deep vertical applications remain well-funded, while generic AI wrappers face existential pressure as model APIs commoditise. The valuation compression at Series B+ suggests the next 12 months will produce forced consolidation — acquisition opportunities for well-capitalised incumbents across enterprise software.",
+      zh: "融资格局的分化反映出投资者日趋成熟：AI 基础设施（数据、算力、工具）和深度垂直应用依然获得充裕资金，而通用 AI 封装随着模型 API 商品化面临生存压力。B 轮以上估值压缩意味着未来 12 个月将出现被迫整合——为企业软件领域资本充足的现有巨头创造并购机会。",
     },
   },
 ]

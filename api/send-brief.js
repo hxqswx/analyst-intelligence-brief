@@ -32,9 +32,15 @@ const IMPACT_STYLE = {
 }
 
 // ── HTML email template ───────────────────────────────────────────────────────
-function buildHTML(lang = 'zh') {
+function buildHTML(lang = 'zh', newsList = news) {
   const isZh = lang === 'zh'
   const tx = obj => (typeof obj === 'object' ? (obj[lang] ?? obj.en) : obj)
+
+  // dynamic counts
+  const aiCount   = newsList.filter(n => n.category === 'AI').length
+  const techCount = newsList.filter(n => n.category === 'Technology').length
+  const finCount  = newsList.filter(n => n.category === 'Finance').length
+  const highCount = newsList.filter(n => n.impact === 'High').length
 
   const catLabel = cat =>
     isZh ? (cat === 'Technology' ? '科技' : cat === 'Finance' ? '金融' : 'AI')
@@ -44,7 +50,7 @@ function buildHTML(lang = 'zh') {
     isZh ? ({ High: '高影响', Medium: '中影响', Low: '低影响' }[imp])
          : imp
 
-  const articleHTML = news.map(item => {
+  const articleHTML = newsList.map(item => {
     const cs = CAT_STYLE[item.category]
     const is = IMPACT_STYLE[item.impact]
     return `
@@ -159,7 +165,7 @@ function buildHTML(lang = 'zh') {
                 </td>
                 <td align="right" style="vertical-align:middle;">
                   <span style="background:rgba(96,165,250,0.15);color:#60a5fa;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;">
-                    ${isZh ? '十大简报' : 'Top 10 Briefs'}
+                    ${isZh ? `${newsList.length}条简报` : `Top ${newsList.length} Briefs`}
                   </span>
                 </td>
               </tr>
@@ -173,19 +179,19 @@ function buildHTML(lang = 'zh') {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td style="text-align:center;">
-                  <span style="font-size:18px;font-weight:800;color:#60a5fa;">4</span><br>
+                  <span style="font-size:18px;font-weight:800;color:#60a5fa;">${aiCount}</span><br>
                   <span style="font-size:10px;color:#484f58;">AI</span>
                 </td>
                 <td style="text-align:center;">
-                  <span style="font-size:18px;font-weight:800;color:#c084fc;">3</span><br>
+                  <span style="font-size:18px;font-weight:800;color:#c084fc;">${techCount}</span><br>
                   <span style="font-size:10px;color:#484f58;">${isZh ? '科技' : 'Tech'}</span>
                 </td>
                 <td style="text-align:center;">
-                  <span style="font-size:18px;font-weight:800;color:#34d399;">3</span><br>
+                  <span style="font-size:18px;font-weight:800;color:#34d399;">${finCount}</span><br>
                   <span style="font-size:10px;color:#484f58;">${isZh ? '金融' : 'Finance'}</span>
                 </td>
                 <td style="text-align:center;">
-                  <span style="font-size:18px;font-weight:800;color:#f87171;">9</span><br>
+                  <span style="font-size:18px;font-weight:800;color:#f87171;">${highCount}</span><br>
                   <span style="font-size:10px;color:#484f58;">${isZh ? '高影响' : 'High Impact'}</span>
                 </td>
               </tr>
@@ -203,7 +209,7 @@ function buildHTML(lang = 'zh') {
             <!-- section title -->
             <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;
                         letter-spacing:2px;margin-bottom:12px;padding:0 2px;">
-              ${isZh ? '本周十大要闻' : 'Top 10 Developments This Week'}
+              ${isZh ? `本周${newsList.length}大要闻` : `Top ${newsList.length} Developments This Week`}
             </div>
 
             <!-- articles -->
@@ -269,26 +275,31 @@ export default async function handler(req, res) {
   const body = await parseBody(req)
   const lang = body?.lang ?? 'zh'
 
-  // read recipients from Redis, fall back to hardcoded list
-  let toList = FALLBACK_TO
+  // read recipients + live news data from Redis
+  let toList   = FALLBACK_TO
+  let liveNews = null
   try {
     const redis = getRedis()
     if (redis) {
-      const stored = await redis.get(REDIS_KEY)
+      const [stored, liveData] = await Promise.all([
+        redis.get(REDIS_KEY),
+        redis.get('brief:live_data'),
+      ])
       if (Array.isArray(stored) && stored.length > 0) toList = stored
+      if (liveData?.news?.length > 0) liveNews = liveData.news
     }
   } catch (e) {
-    console.warn('[send-brief] Redis read failed, using fallback recipients:', e.message)
+    console.warn('[send-brief] Redis read failed:', e.message)
   }
 
   try {
     const resend = new Resend(apiKey)
-    const html   = buildHTML(lang)
+    const html   = buildHTML(lang, liveNews ?? news)
 
     const { data, error } = await resend.emails.send({
       from:    FROM,
       to:      toList,
-      subject: `${lang === 'zh' ? '分析师情报简报' : 'Analyst Intelligence Brief'} — ${weekRange}`,
+      subject: `${lang === 'zh' ? '分析师情报简报' : 'Analyst Intelligence Brief'} — ${liveNews ? new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : weekRange}`,
       html,
     })
 

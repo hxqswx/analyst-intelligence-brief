@@ -15,12 +15,24 @@ import { Redis } from '@upstash/redis'
 export const REDIS_DATA_KEY = 'brief:live_data'
 export const REDIS_TS_KEY   = 'brief:live_ts'
 
-// ── Free RSS sources ──────────────────────────────────────────────────────────
+// ── RSS sources (free, no API key) ───────────────────────────────────────────
+// Sources chosen to cover US / UK / China / Global finance & tech
 const RSS_FEEDS = [
-  'https://feeds.bbci.co.uk/news/technology/rss.xml',
-  'https://feeds.bbci.co.uk/news/business/rss.xml',
-  'https://techcrunch.com/feed/',
-  'https://www.scmp.com/rss/4/feed',
+  // Global / BBC
+  'https://feeds.bbci.co.uk/news/technology/rss.xml',         // BBC Technology
+  'https://feeds.bbci.co.uk/news/business/rss.xml',           // BBC Business
+  // US Tech & AI
+  'https://techcrunch.com/feed/',                              // TechCrunch
+  'https://www.technologyreview.com/feed/',                    // MIT Technology Review
+  'https://venturebeat.com/category/ai/feed/',                 // VentureBeat AI
+  'https://feeds.arstechnica.com/arstechnica/technology-lab',  // Ars Technica
+  // US Finance
+  'https://feeds.reuters.com/reuters/businessNews',            // Reuters Business
+  'https://feeds.reuters.com/reuters/technologyNews',          // Reuters Technology
+  // Asia / China focus
+  'https://www.scmp.com/rss/4/feed',                          // SCMP (Asia/China)
+  'https://www.caixinglobal.com/rss/rss.xml',                  // Caixin Global (China finance)
+  'https://36kr.com/feed',                                     // 36Kr (China tech — may time-out from US servers)
 ]
 
 // ── XML helpers ───────────────────────────────────────────────────────────────
@@ -100,7 +112,7 @@ export default async function handler(req, res) {
   const today     = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const weekRange = getWeekRange()
 
-  const headlines = items.slice(0, 25)
+  const headlines = items.slice(0, 40)
     .map((it, i) => `[${i + 1}] ${it.title}\n${it.desc || '(no description)'}\nURL: ${it.link || 'n/a'}`)
     .join('\n\n')
 
@@ -108,7 +120,7 @@ export default async function handler(req, res) {
   const model  = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
   const prompt = `Today is ${today}. You are an analyst news processor creating a bilingual intelligence brief.
 
-Analyze these recent headlines:
+Analyze these recent headlines (sources include BBC, MIT Technology Review, TechCrunch, VentureBeat, Reuters, SCMP, Caixin):
 
 ${headlines}
 
@@ -140,13 +152,14 @@ Return a JSON object with this exact structure:
 }
 
 Rules:
-- Select exactly 10 items, ranked 1-10 by importance
-- region "china" for Chinese companies (Baidu, Tencent, Alibaba, Huawei, ByteDance, Xiaomi, JD, PDD, Meituan) or China economy/policy; all others "overseas"
-- category: "AI" for AI/ML/LLM; "Technology" for hardware/software/cybersecurity; "Finance" for markets/crypto/banks
-- impact: "High" for major market-moving; "Medium" for notable; "Low" for minor
+- Select exactly 20 items, ranked 1-20 by importance/impact
+- Aim for roughly 6-8 China items and 12-14 overseas items based on actual news weight
+- region "china" for Chinese companies (Baidu, Tencent, Alibaba, Huawei, ByteDance, Xiaomi, JD, PDD, Meituan, CATL, BYD, 36Kr, Caixin) or China economy/government policy; all others "overseas"
+- category: "AI" for AI/ML/LLM/models; "Technology" for hardware/software/semiconductors/cybersecurity; "Finance" for markets/crypto/banks/macro
+- impact: "High" for major market-moving events; "Medium" for notable developments; "Low" for minor news
 - tags: 2-3 short keywords
 - sectors in synthesis: 1-2 items from ["AI", "Technology", "Finance"]
-- sources: use the URL from the list above; name = publication name`
+- sources: use the article URL from the headline list; name = publication name`
 
   try {
     const groq = new Groq({ apiKey })
@@ -154,7 +167,7 @@ Rules:
     const completion = await groq.chat.completions.create({
       model,
       messages:        [{ role: 'user', content: prompt }],
-      max_tokens:      4096,
+      max_tokens:      7000,
       temperature:     0.3,
       response_format: { type: 'json_object' },   // Groq JSON mode — no parsing failures
     })
