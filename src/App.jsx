@@ -1,4 +1,4 @@
-import { useState, useMemo, createContext, useContext, useCallback, useEffect } from 'react'
+import { useState, useMemo, createContext, useContext, useCallback, useEffect, useRef } from 'react'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import {
   Brain, Cpu, TrendingUp, Flame, ChevronDown, ChevronUp,
@@ -6,14 +6,48 @@ import {
   Star, ArrowUpRight, AlertTriangle, Mail, CheckCircle, XCircle,
   Settings, MapPin,
 } from 'lucide-react'
-import { news, chinaNews, overseasNews, synthesis, weekRange, publishedAt, categoryMeta } from './data.js'
+import { news as staticNews, chinaNews as staticChina, overseasNews as staticOverseas,
+         synthesis as staticSynthesis, weekRange as staticWeekRange,
+         publishedAt as staticPublishedAt } from './data.js'
 import { i18n, LANG_KEY } from './i18n.js'
 import { LangCtx } from './context.js'
 import AdminPanel from './AdminPanel.jsx'
 
 const useLang = () => useContext(LangCtx)
 
-// ─── constants ────────────────────────────────────────────────────────────────
+// ─── BriefCtx — live data ────────────────────────────────────────────────────
+
+function makeMeta(news) {
+  const china    = news.filter(n => n.region === 'china')
+  const overseas = news.filter(n => n.region === 'overseas')
+  return {
+    chinaNews:    china,
+    overseasNews: overseas,
+    categoryMeta: {
+      AI:         { count: news.filter(n => n.category === 'AI').length },
+      Technology: { count: news.filter(n => n.category === 'Technology').length },
+      Finance:    { count: news.filter(n => n.category === 'Finance').length },
+      china:      { count: china.length },
+      overseas:   { count: overseas.length },
+    },
+  }
+}
+
+const staticMeta = makeMeta(staticNews)
+
+const BriefCtx = createContext({
+  news:        staticNews,
+  ...staticMeta,
+  synthesis:   staticSynthesis,
+  weekRange:   staticWeekRange,
+  publishedAt: staticPublishedAt,
+  source:      'static',
+  cachedAt:    null,
+})
+
+const useBrief = () => useContext(BriefCtx)
+
+// ─── constants ───────────────────────────────────────────────────────────────
 
 const CAT = {
   AI:         { pill: 'pill-ai',   text: 'text-ai',   stripe: 'stripe-ai',   Icon: Brain,      panel: 'panel-ai'   },
@@ -22,34 +56,34 @@ const CAT = {
 }
 const IMPACT_CLS = { High: 'impact-high', Medium: 'impact-medium', Low: 'impact-low' }
 
-// region tab definitions
-const TAB_DEFS = [
+const REGION_TABS = [
   { key: 'All',      Icon: Star    },
   { key: 'china',    Icon: MapPin  },
   { key: 'overseas', Icon: Globe   },
 ]
+const REGION_ACTIVE = { All: 'text-white',  china: 'text-red-400', overseas: 'text-ai' }
+const REGION_LINE   = { All: 'bg-slate-300', china: 'bg-red-400',  overseas: 'bg-ai'  }
 
-const TAB_ACTIVE = {
-  All:      'text-white',
-  china:    'text-red-400',
-  overseas: 'text-ai',
-}
-const TAB_LINE = {
-  All:      'bg-slate-300',
-  china:    'bg-red-400',
-  overseas: 'bg-ai',
-}
+const CAT_FILTERS = ['AI', 'Technology', 'Finance']
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 const tx = (field, lang) =>
   field && typeof field === 'object' ? (field[lang] ?? field.en) : field
 
-// ─── atoms ────────────────────────────────────────────────────────────────────
+function timeAgo(ts, lang, t) {
+  if (!ts) return null
+  const mins = Math.floor((Date.now() - ts) / 60000)
+  if (mins < 1)  return t.justUpdated
+  if (mins < 60) return t.updatedAgo(mins, lang === 'zh' ? '分钟' : 'm')
+  return t.updatedAgo(Math.floor(mins / 60), lang === 'zh' ? '小时' : 'h')
+}
+
+// ─── atoms ───────────────────────────────────────────────────────────────────
 
 function CategoryPill({ category }) {
   const { lang, t } = useLang()
-  const { pill, Icon } = CAT[category]
+  const { pill, Icon } = CAT[category] ?? CAT.AI
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${pill}`}>
       <Icon size={10} />
@@ -68,48 +102,96 @@ function ImpactPill({ impact }) {
   )
 }
 
-// ─── TabBar ───────────────────────────────────────────────────────────────────
+// ─── RegionTabBar ─────────────────────────────────────────────────────────────
 
-function TabBar({ active, setActive }) {
+function RegionTabBar({ active, setActive }) {
   const { t } = useLang()
+  const { news, categoryMeta } = useBrief()
   const counts = {
     All:      news.length,
     china:    categoryMeta.china.count,
     overseas: categoryMeta.overseas.count,
   }
   return (
-    <div className="border-b border-surface-line">
-      <div className="flex overflow-x-auto no-scrollbar">
-        {TAB_DEFS.map(({ key, Icon }) => {
-          const isActive = active === key
-          return (
-            <button
-              key={key}
-              onClick={() => setActive(key)}
-              className={`relative flex items-center gap-1.5 px-4 py-3 text-sm font-medium
-                          whitespace-nowrap shrink-0 transition-colors duration-150
-                          ${isActive ? TAB_ACTIVE[key] : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              <Icon size={13} />
-              {t.tabs[key]}
-              <span className={`ml-0.5 text-2xs px-1.5 py-px rounded-full
-                ${isActive ? 'bg-white/15' : 'bg-white/6 text-slate-600'}`}>
-                {counts[key]}
-              </span>
-              {isActive && (
-                <span className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full ${TAB_LINE[key]}`} />
-              )}
-            </button>
-          )
-        })}
-      </div>
+    <div className="flex overflow-x-auto no-scrollbar border-b border-surface-line">
+      {REGION_TABS.map(({ key, Icon }) => {
+        const isActive = active === key
+        return (
+          <button
+            key={key}
+            onClick={() => setActive(key)}
+            className={`relative flex items-center gap-1.5 px-4 py-3 text-sm font-medium
+                        whitespace-nowrap shrink-0 transition-colors duration-150
+                        ${isActive ? REGION_ACTIVE[key] : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            <Icon size={13} />
+            {t.tabs[key]}
+            <span className={`ml-0.5 text-2xs px-1.5 py-px rounded-full
+              ${isActive ? 'bg-white/15' : 'bg-white/6 text-slate-600'}`}>
+              {counts[key]}
+            </span>
+            {isActive && (
+              <span className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full ${REGION_LINE[key]}`} />
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── CatFilterBar ─────────────────────────────────────────────────────────────
+
+function CatFilterBar({ active, setActive }) {
+  const { t } = useLang()
+  const { news } = useBrief()
+  const counts = {
+    AI:         news.filter(n => n.category === 'AI').length,
+    Technology: news.filter(n => n.category === 'Technology').length,
+    Finance:    news.filter(n => n.category === 'Finance').length,
+  }
+  return (
+    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar px-4 py-2.5
+                    border-b border-surface-line/60">
+      {/* All */}
+      <button
+        onClick={() => setActive(null)}
+        className={`shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-colors border
+          ${active === null
+            ? 'bg-white/12 border-white/20 text-white'
+            : 'border-surface-line text-slate-500 hover:text-slate-300'}`}
+      >
+        {t.catAll}
+      </button>
+
+      {CAT_FILTERS.map(cat => {
+        const { pill, Icon } = CAT[cat]
+        const isActive = active === cat
+        return (
+          <button
+            key={cat}
+            onClick={() => setActive(isActive ? null : cat)}
+            className={`shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold
+                        transition-colors border
+              ${isActive
+                ? `${pill} border-transparent`
+                : 'border-surface-line text-slate-500 hover:text-slate-300'}`}
+          >
+            <Icon size={10} />
+            {t.catLabel[cat]}
+            <span className={`text-2xs ml-0.5 ${isActive ? 'opacity-70' : 'text-slate-600'}`}>
+              {counts[cat]}
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }
 
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 
-function SectionHeader({ region }) {
+function SectionHeader({ region, count }) {
   const { t } = useLang()
   const isChina = region === 'china'
   return (
@@ -123,9 +205,7 @@ function SectionHeader({ region }) {
         ${isChina ? 'text-red-400' : 'text-ai'}`}>
         {isChina ? t.sectionChina : t.sectionOverseas}
       </span>
-      <span className="text-2xs text-slate-600 ml-1">
-        {isChina ? chinaNews.length : overseasNews.length} {t.stories}
-      </span>
+      <span className="text-2xs text-slate-600 ml-1">{count} {t.stories}</span>
     </div>
   )
 }
@@ -135,7 +215,7 @@ function SectionHeader({ region }) {
 function NewsCard({ item, index }) {
   const { lang, t } = useLang()
   const [expanded, setExpanded] = useState(false)
-  const { stripe, text, panel } = CAT[item.category]
+  const { stripe, text, panel } = CAT[item.category] ?? CAT.AI
 
   return (
     <article
@@ -144,11 +224,10 @@ function NewsCard({ item, index }) {
       onClick={() => setExpanded(e => !e)}
     >
       <div className="flex">
-        {/* accent stripe */}
         <div className={`w-1 shrink-0 ${stripe}`} />
 
         <div className="flex-1 min-w-0">
-          {/* header */}
+          {/* header row */}
           <div className="px-4 pt-4 pb-3">
             <div className="flex items-center justify-between gap-2 mb-2.5">
               <div className="flex items-center gap-2 flex-wrap">
@@ -174,14 +253,16 @@ function NewsCard({ item, index }) {
               {tx(item.summary, lang)}
             </p>
 
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {item.tags.map(tag => (
-                <span key={tag} className="text-2xs px-2 py-0.5 rounded-md
-                  bg-surface-raise border border-surface-line text-slate-500">
-                  {tag}
-                </span>
-              ))}
-            </div>
+            {item.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {item.tags.map(tag => (
+                  <span key={tag} className="text-2xs px-2 py-0.5 rounded-md
+                    bg-surface-raise border border-surface-line text-slate-500">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* expanded panel */}
@@ -198,7 +279,7 @@ function NewsCard({ item, index }) {
               <div className="mt-2.5 pt-2.5 border-t border-white/8
                               flex flex-wrap items-center gap-1.5 text-2xs text-slate-600">
                 <span>{t.sources}</span>
-                {item.sources.map((src, i) => (
+                {(item.sources ?? []).map((src, i) => (
                   <a
                     key={src.name}
                     href={src.url}
@@ -231,7 +312,10 @@ function NewsCard({ item, index }) {
 
 function SynthesisCard() {
   const { lang, t } = useLang()
+  const { synthesis } = useBrief()
   const [open, setOpen] = useState(false)
+  const sectors = (synthesis.sectors ?? []).filter(s => CAT[s])
+
   return (
     <section
       className="rounded-xl border border-gold/25 bg-surface-card shadow-glow-gold
@@ -255,7 +339,7 @@ function SynthesisCard() {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          {synthesis.sectors.map(s => <CategoryPill key={s} category={s} />)}
+          {sectors.map(s => <CategoryPill key={s} category={s} />)}
           <span className="text-gold/40 ml-1">
             {open ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
           </span>
@@ -283,12 +367,12 @@ function SynthesisCard() {
 
 function StatsBar() {
   const { t } = useLang()
+  const { news, categoryMeta } = useBrief()
   const stats = [
-    { label: 'AI',          value: categoryMeta.AI.count,         color: 'text-ai',     Icon: Brain        },
-    { label: t.tabs.china,  value: categoryMeta.china.count,      color: 'text-red-400',Icon: MapPin       },
-    { label: t.tabs.overseas,value: categoryMeta.overseas.count,  color: 'text-ai',     Icon: Globe        },
-    { label: t.highImpact,  value: news.filter(n => n.impact === 'High').length,
-                                                                   color: 'text-red-400',Icon: AlertTriangle },
+    { label: 'AI',           value: categoryMeta.AI.count,                          color: 'text-ai',      Icon: Brain         },
+    { label: t.catLabel.Technology, value: categoryMeta.Technology.count,           color: 'text-tech',    Icon: Cpu           },
+    { label: t.catLabel.Finance,    value: categoryMeta.Finance.count,              color: 'text-fin',     Icon: TrendingUp    },
+    { label: t.highImpact,   value: news.filter(n => n.impact === 'High').length,   color: 'text-red-400', Icon: AlertTriangle },
   ]
   return (
     <div className="grid grid-cols-4 gap-2">
@@ -309,6 +393,7 @@ function StatsBar() {
 
 function Header({ lang, setLang, onAdminOpen }) {
   const { t } = useLang()
+  const { weekRange, source, cachedAt } = useBrief()
   const [online,      setOnline]      = useState(navigator.onLine)
   const [refreshing,  setRefreshing]  = useState(false)
   const [emailStatus, setEmailStatus] = useState(null)
@@ -342,16 +427,17 @@ function Header({ lang, setLang, onAdminOpen }) {
       setEmailErr('')
       setTimeout(() => setEmailStatus(null), 3500)
     } catch (e) {
-      console.error(e)
       setEmailErr(e.message.slice(0, 120))
       setEmailStatus('err')
       setTimeout(() => { setEmailStatus(null); setEmailErr('') }, 5000)
     }
   }
 
-  const liveLabel = online
-    ? (lang === 'zh' ? '实时在线' : 'Live')
-    : (lang === 'zh' ? '已离线'   : 'Offline')
+  // freshness badge
+  const freshnessLabel = source === 'live'
+    ? (cachedAt ? timeAgo(cachedAt, lang, t) : t.liveLabel)
+    : source === 'stale' ? t.staleLabel
+    : null   // static — don't show
 
   return (
     <header className="sticky top-0 z-30 bg-surface-base/90 backdrop-blur-xl
@@ -377,13 +463,16 @@ function Header({ lang, setLang, onAdminOpen }) {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* live indicator */}
+          {/* live / freshness indicator */}
           <div className="hidden sm:flex items-center gap-1.5 text-xs mr-1
                           px-2 py-1 rounded-full bg-surface-card border border-surface-line
                           text-slate-500">
             <span className={`w-1.5 h-1.5 rounded-full
-              ${online ? 'bg-emerald-400 animate-pulse-slow' : 'bg-red-500'}`} />
-            {liveLabel}
+              ${!online           ? 'bg-red-500'
+              : source === 'live' ? 'bg-emerald-400 animate-pulse-slow'
+              :                     'bg-slate-500'}`} />
+            {!online ? (lang === 'zh' ? '已离线' : 'Offline')
+              : freshnessLabel ?? (lang === 'zh' ? '静态数据' : 'Static')}
           </div>
 
           {/* send email */}
@@ -444,6 +533,7 @@ function Header({ lang, setLang, onAdminOpen }) {
 
 function Footer() {
   const { t } = useLang()
+  const { publishedAt } = useBrief()
   return (
     <footer className="border-t border-surface-line mt-8 safe-bottom">
       <div className="max-w-2xl mx-auto px-4 py-8 text-center">
@@ -467,7 +557,46 @@ export default function App() {
     try { return localStorage.getItem(LANG_KEY) || 'zh' } catch { return 'zh' }
   })
   const [activeTab,  setActiveTab] = useState('All')
+  const [activeCat,  setActiveCat] = useState(null)   // null = all categories
   const [adminOpen,  setAdminOpen] = useState(false)
+
+  // ── live brief data ──────────────────────────────────────────────────────
+  const [briefData, setBriefData] = useState({
+    news:        staticNews,
+    ...staticMeta,
+    synthesis:   staticSynthesis,
+    weekRange:   staticWeekRange,
+    publishedAt: staticPublishedAt,
+    source:      'static',
+    cachedAt:    null,
+  })
+
+  const loadData = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/brief-data')
+      const data = await res.json()
+      if (!res.ok || !Array.isArray(data.news) || data.news.length === 0) return
+      const derived = makeMeta(data.news)
+      setBriefData({
+        news:        data.news,
+        ...derived,
+        synthesis:   data.synthesis   ?? staticSynthesis,
+        weekRange:   data.weekRange   ?? staticWeekRange,
+        publishedAt: data.publishedAt ?? staticPublishedAt,
+        source:      data.source      ?? 'live',
+        cachedAt:    data.cachedAt    ?? null,
+      })
+    } catch {
+      // silently keep static data
+    }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+    // auto-refresh every hour
+    const id = setInterval(loadData, 60 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [loadData])
 
   const t = i18n[lang]
 
@@ -476,81 +605,107 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
-  const filtered = useMemo(
-    () => activeTab === 'All'
-      ? news
-      : news.filter(n => n.region === activeTab),
-    [activeTab]
+  // ── filter logic ─────────────────────────────────────────────────────────
+  const displayChina = useMemo(() =>
+    briefData.chinaNews.filter(n => activeCat === null || n.category === activeCat),
+    [briefData.chinaNews, activeCat]
   )
+  const displayOverseas = useMemo(() =>
+    briefData.overseasNews.filter(n => activeCat === null || n.category === activeCat),
+    [briefData.overseasNews, activeCat]
+  )
+  const displayFiltered = useMemo(() => {
+    let list = activeTab === 'All' ? briefData.news : briefData.news.filter(n => n.region === activeTab)
+    if (activeCat !== null) list = list.filter(n => n.category === activeCat)
+    return list
+  }, [briefData.news, activeTab, activeCat])
 
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <LangCtx.Provider value={{ lang, t }}>
-        <div className="min-h-dvh flex flex-col bg-surface-base">
+        <BriefCtx.Provider value={briefData}>
+          <div className="min-h-dvh flex flex-col bg-surface-base">
 
-          <Header lang={lang} setLang={setLang} onAdminOpen={() => setAdminOpen(true)} />
+            <Header lang={lang} setLang={setLang} onAdminOpen={() => setAdminOpen(true)} />
 
-          {/* sticky tab bar */}
-          <div className="sticky top-14 z-20 bg-surface-base/95 backdrop-blur-lg
-                          border-b border-surface-line">
-            <div className="max-w-2xl mx-auto px-4">
-              <TabBar active={activeTab} setActive={handleTabChange} />
-            </div>
-          </div>
-
-          <main className="flex-1 max-w-2xl mx-auto w-full px-4 pt-6 pb-4">
-
-            {/* hero */}
-            <div className="mb-5">
-              <h1 className="text-2xl font-extrabold text-white leading-tight mb-1">
-                {t.topBriefs}<br />
-                <span className="text-gradient-ai">{t.thisWeek}</span>
-              </h1>
-              <p className="text-sm text-slate-500">{t.tagline} — {weekRange}</p>
+            {/* sticky filter bars */}
+            <div className="sticky top-14 z-20 bg-surface-base/95 backdrop-blur-lg">
+              <div className="max-w-2xl mx-auto px-4">
+                <RegionTabBar active={activeTab} setActive={handleTabChange} />
+              </div>
+              <div className="max-w-2xl mx-auto">
+                <CatFilterBar active={activeCat} setActive={setActiveCat} />
+              </div>
             </div>
 
-            {/* stats */}
-            <div className="mb-5"><StatsBar /></div>
+            <main className="flex-1 max-w-2xl mx-auto w-full px-4 pt-6 pb-4">
 
-            {/* synthesis — only on All tab */}
-            {activeTab === 'All' && (
-              <div className="mb-5"><SynthesisCard /></div>
-            )}
+              {/* hero */}
+              <div className="mb-5">
+                <h1 className="text-2xl font-extrabold text-white leading-tight mb-1">
+                  {t.topBriefs}<br />
+                  <span className="text-gradient-ai">{t.thisWeek}</span>
+                </h1>
+                <p className="text-sm text-slate-500">{t.tagline} — {briefData.weekRange}</p>
+              </div>
 
-            {/* article list */}
-            {activeTab === 'All' ? (
-              /* sectioned view: China first, then Overseas */
-              <div className="flex flex-col gap-3">
-                <SectionHeader region="china" />
-                {chinaNews.map((item, i) => (
-                  <NewsCard key={`china-${item.id}`} item={item} index={i} />
-                ))}
-                <div className="mt-4">
-                  <SectionHeader region="overseas" />
+              {/* stats */}
+              <div className="mb-5"><StatsBar /></div>
+
+              {/* synthesis — only on All tab with no category filter */}
+              {activeTab === 'All' && activeCat === null && (
+                <div className="mb-5"><SynthesisCard /></div>
+              )}
+
+              {/* article list */}
+              {activeTab === 'All' ? (
+                <div className="flex flex-col gap-3">
+                  <SectionHeader region="china"   count={displayChina.length} />
+                  {displayChina.map((item, i) => (
+                    <NewsCard key={`china-${item.id}`} item={item} index={i} />
+                  ))}
+                  {displayChina.length === 0 && (
+                    <p className="text-xs text-slate-600 text-center py-4">
+                      {lang === 'zh' ? '该分类下暂无中国新闻' : 'No China news in this category'}
+                    </p>
+                  )}
+                  <div className="mt-4">
+                    <SectionHeader region="overseas" count={displayOverseas.length} />
+                  </div>
+                  {displayOverseas.map((item, i) => (
+                    <NewsCard key={`overseas-${item.id}`} item={item} index={i} />
+                  ))}
+                  {displayOverseas.length === 0 && (
+                    <p className="text-xs text-slate-600 text-center py-4">
+                      {lang === 'zh' ? '该分类下暂无海外新闻' : 'No overseas news in this category'}
+                    </p>
+                  )}
                 </div>
-                {overseasNews.map((item, i) => (
-                  <NewsCard key={`overseas-${item.id}`} item={item} index={i} />
-                ))}
-              </div>
-            ) : (
-              /* filtered single-region view */
-              <div className="flex flex-col gap-3">
-                {filtered.map((item, i) => (
-                  <NewsCard key={`${activeTab}-${item.id}`} item={item} index={i} />
-                ))}
-              </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {displayFiltered.map((item, i) => (
+                    <NewsCard key={`${activeTab}-${item.id}`} item={item} index={i} />
+                  ))}
+                  {displayFiltered.length === 0 && (
+                    <p className="text-xs text-slate-600 text-center py-8">
+                      {lang === 'zh' ? '该分类下暂无新闻' : 'No news in this category'}
+                    </p>
+                  )}
+                </div>
+              )}
+
+            </main>
+
+            <Footer />
+
+            {adminOpen && (
+              <AdminPanel onClose={() => setAdminOpen(false)} onRefresh={loadData} />
             )}
 
-          </main>
-
-          <Footer />
-
-          {/* admin modal */}
-          {adminOpen && <AdminPanel onClose={() => setAdminOpen(false)} />}
-
-        </div>
+          </div>
+        </BriefCtx.Provider>
       </LangCtx.Provider>
     </GoogleOAuthProvider>
   )

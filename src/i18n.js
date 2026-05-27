@@ -9,6 +9,7 @@ export const i18n = {
     live:              'Live',
     tabs:              { All: 'All', china: 'China', overseas: 'Overseas' },
     catLabel:          { AI: 'AI', Technology: 'Tech', Finance: 'Finance' },
+    catAll:            'All',
     sectionChina:      'China Developments',
     sectionOverseas:   'Overseas Developments',
     mostDebated:       "Week's Most Debated Topic",
@@ -24,6 +25,13 @@ export const i18n = {
     footer:            'Curated intelligence for technology & finance analysts',
     disclaimer:        'Analyst-curated market intelligence. Not financial advice.',
     langToggle:        '中文',
+    // data freshness
+    liveLabel:         'Live',
+    staleLabel:        'Stale',
+    staticLabel:       'Static',
+    justUpdated:       'Just updated',
+    updatedAgo:        (n, unit) => `Updated ${n}${unit} ago`,
+    refreshing:        'Refreshing…',
     // admin
     adminPanel:        'Admin Panel',
     adminLogin:        'Sign in with Google to access admin',
@@ -32,6 +40,9 @@ export const i18n = {
     adminLogout:       'Sign out',
     adminUnauthorized: 'Access denied — not an admin account',
     adminNotConfigured:'Google Client ID not configured (add VITE_GOOGLE_CLIENT_ID)',
+    adminRefreshData:  'Refresh Data Now',
+    adminRefreshing:   'Refreshing…',
+    adminRefreshOk:    'Data refreshed!',
   },
   zh: {
     appTitle:          '分析师情报简报',
@@ -41,6 +52,7 @@ export const i18n = {
     live:              '实时',
     tabs:              { All: '全部', china: '中国', overseas: '海外' },
     catLabel:          { AI: 'AI', Technology: '科技', Finance: '金融' },
+    catAll:            '全部',
     sectionChina:      '中国要闻',
     sectionOverseas:   '海外要闻',
     mostDebated:       '本周最热议题',
@@ -56,6 +68,13 @@ export const i18n = {
     footer:            '为科技与金融行业分析师精选情报',
     disclaimer:        '基于公开报道精选编辑，不构成投资建议。',
     langToggle:        'EN',
+    // data freshness
+    liveLabel:         '实时',
+    staleLabel:        '已过期',
+    staticLabel:       '静态',
+    justUpdated:       '刚刚更新',
+    updatedAgo:        (n, unit) => `${n}${unit}前更新`,
+    refreshing:        '更新中…',
     // admin
     adminPanel:        '管理后台',
     adminLogin:        '使用 Google 账号登录以访问管理后台',
@@ -64,5 +83,8 @@ export const i18n = {
     adminLogout:       '退出登录',
     adminUnauthorized: '访问被拒绝——该账号无管理员权限',
     adminNotConfigured:'Google Client ID 未配置（请设置 VITE_GOOGLE_CLIENT_ID）',
+    adminRefreshData:  '立即刷新数据',
+    adminRefreshing:   '刷新中…',
+    adminRefreshOk:    '数据已更新！',
   },
 }

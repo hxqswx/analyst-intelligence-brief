@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react'
 import { GoogleLogin } from '@react-oauth/google'
-import { X, Plus, Mail, Shield, LogOut, Loader2, AlertCircle } from 'lucide-react'
+import { X, Plus, Mail, Shield, LogOut, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { LangCtx } from './context.js'
 
 // decode Google JWT payload (client-side, no signature check)
@@ -11,7 +11,7 @@ function decodeJWT(token) {
   } catch { return null }
 }
 
-export default function AdminPanel({ onClose }) {
+export default function AdminPanel({ onClose, onRefresh }) {
   const { t } = useContext(LangCtx)
   const [user,       setUser]       = useState(null)
   const [isAdmin,    setIsAdmin]    = useState(false)
@@ -20,6 +20,7 @@ export default function AdminPanel({ onClose }) {
   const [loading,    setLoading]    = useState(false)
   const [msg,        setMsg]        = useState({ text: '', ok: true })
   const [credential, setCredential] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
   const ADMIN_EMAIL      = import.meta.env.VITE_ADMIN_EMAIL
@@ -91,6 +92,24 @@ export default function AdminPanel({ onClose }) {
       setRecipients(data.recipients)
     } catch (e) { setMsg({ text: e.message, ok: false }) }
     setLoading(false)
+  }
+
+  const handleRefreshData = async () => {
+    setRefreshing(true)
+    setMsg({ text: '', ok: true })
+    try {
+      const res  = await fetch('/api/refresh-data', { method: 'POST' })
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch { throw new Error(text.slice(0, 120)) }
+      if (!res.ok) throw new Error(data.error ?? res.statusText)
+      setMsg({ text: t.adminRefreshOk, ok: true })
+      if (onRefresh) onRefresh()           // reload data in parent
+      setTimeout(() => setMsg({ text: '', ok: true }), 3000)
+    } catch (e) {
+      setMsg({ text: e.message, ok: false })
+    }
+    setRefreshing(false)
   }
 
   const handleLogout = () => {
@@ -183,6 +202,19 @@ export default function AdminPanel({ onClose }) {
                   {t.adminLogout}
                 </button>
               </div>
+
+              {/* refresh data */}
+              <button
+                onClick={handleRefreshData}
+                disabled={refreshing}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg
+                           bg-ai/10 border border-ai/30 text-ai text-xs font-semibold
+                           hover:bg-ai/20 transition-colors disabled:opacity-50"
+              >
+                {refreshing
+                  ? <><Loader2 size={13} className="animate-spin" />{t.adminRefreshing}</>
+                  : <><RefreshCw size={13} />{t.adminRefreshData}</>}
+              </button>
 
               {/* recipients */}
               <div>
