@@ -15,11 +15,141 @@ export const synthesis = {
   debateScore:  97,
 }
 
-// top 10 news ──────────────────────────────────────────────────────────────────
-export const news = [
+// ── China news ─────────────────────────────────────────────────────────────────
+export const chinaNews = [
+  {
+    id: 11, rank: 1,
+    category: "AI",
+    region: "china",
+    date: "May 22, 2026",
+    impact: "High",
+    sources: [
+      { name: "36氪",     url: "https://36kr.com" },
+      { name: "机器之心", url: "https://jiqizhixin.com" },
+      { name: "SCMP",     url: "https://scmp.com" },
+    ],
+    tags: ["DeepSeek", "开源", "LLM", "MoE"],
+    title: {
+      en: "DeepSeek V4 Open-Sources 685B MoE Model, Rivals GPT-5 at 1% of the Cost",
+      zh: "DeepSeek V4 开源 6850 亿 MoE 模型，成本仅为 GPT-5 的 1%",
+    },
+    summary: {
+      en: "DeepSeek released V4, a 685B parameter Mixture-of-Experts model trained for under $3M — roughly 1% of GPT-5's estimated compute budget. The model achieves comparable performance on coding, math, and reasoning benchmarks and is fully open-sourced. Within 48 hours, over 200,000 developers forked the weights globally.",
+      zh: "DeepSeek 发布 V4，这是一个 6850 亿参数的混合专家模型，训练成本不足 300 万美元——约为 GPT-5 估算算力成本的 1%。该模型在编码、数学和推理基准测试中达到可比水平，并完全开源。48 小时内，全球逾 20 万名开发者下载了模型权重。",
+    },
+    whyItMatters: {
+      en: "DeepSeek V4 is the most direct challenge yet to the premise that frontier AI requires massive capital concentration. Its cost efficiency undermines the CapEx moat narrative of US hyperscalers and validates China's 'efficient scaling' research direction. For US policymakers, it complicates chip export control strategy: restricted hardware didn't prevent frontier capability development.",
+      zh: "DeepSeek V4 是迄今对「前沿 AI 需要大量资本集中」这一前提最直接的挑战。其成本效益颠覆了美国超大规模云厂商资本支出护城河的叙事，并验证了中国「高效扩展」研究方向。对美国政策制定者而言，这使芯片出口管制战略更加复杂：受限算力并未阻止前沿能力的发展。",
+    },
+  },
+  {
+    id: 12, rank: 2,
+    category: "AI",
+    region: "china",
+    date: "May 21, 2026",
+    impact: "High",
+    sources: [
+      { name: "新浪科技", url: "https://tech.sina.com.cn" },
+      { name: "钛媒体",   url: "https://tmtpost.com" },
+      { name: "Bloomberg",url: "https://bloomberg.com" },
+    ],
+    tags: ["百度", "文心大模型", "端云一体", "商业化"],
+    title: {
+      en: "Baidu ERNIE 5.0 Launches Unified Cloud-Edge Deployment — 430 Enterprise Clients",
+      zh: "百度文心大模型 5.0 发布端云一体化方案，企业客户突破 430 家",
+    },
+    summary: {
+      en: "Baidu unveiled ERNIE 5.0 with a new unified cloud-edge architecture that allows the same model to run across data centers, edge servers, and devices. The company announced 430 enterprise customers deploying ERNIE in production — a 3× increase from Q4 2025 — across manufacturing automation, financial risk management, and healthcare diagnostics.",
+      zh: "百度发布文心大模型 5.0，采用全新端云一体化架构，同一模型可跨数据中心、边缘服务器和终端设备部署运行。公司宣布企业客户数突破 430 家，较 2025 年四季度增长 3 倍，覆盖制造业自动化、金融风险管理和医疗诊断等领域。",
+    },
+    whyItMatters: {
+      en: "Baidu's enterprise deployment numbers signal that Chinese AI is crossing the chasm from demonstrations to revenue-generating production — a gap analysts have long doubted. ERNIE's edge deployment capability addresses China's data sovereignty requirements that prevent many enterprises from using US cloud AI. For investors, the trajectory finally provides evidence for Baidu's AI transformation thesis.",
+      zh: "百度的企业部署数据表明，中国 AI 正在跨越从演示到产生收入生产部署之间的鸿沟。文心模型的端侧部署能力满足了中国数据主权要求，而这些要求阻止了许多企业使用美国云 AI 服务。对投资者而言，这一收入轨迹终于为百度 AI 转型逻辑提供了佐证。",
+    },
+  },
+  {
+    id: 13, rank: 3,
+    category: "Technology",
+    region: "china",
+    date: "May 24, 2026",
+    impact: "High",
+    sources: [
+      { name: "腾讯科技",       url: "https://tech.qq.com" },
+      { name: "财新网",         url: "https://caixin.com" },
+      { name: "The Information",url: "https://www.theinformation.com" },
+    ],
+    tags: ["腾讯", "混元", "微信", "AI生态"],
+    title: {
+      en: "Tencent Hunyuan Fully Integrated Into WeChat — 3 Billion Monthly Active AI Calls",
+      zh: "腾讯混元全面融入微信生态，月活跃 AI 调用量突破 30 亿次",
+    },
+    summary: {
+      en: "Tencent announced that Hunyuan AI is now deeply embedded across WeChat — search, mini-programs, official accounts, and payments — recording 3 billion monthly active API calls. WeChat's 1.35 billion monthly active users now interact with AI-powered features without explicit awareness of the underlying model.",
+      zh: "腾讯宣布混元 AI 已深度嵌入微信全生态——搜索、小程序、公众号和支付——月活跃 API 调用量突破 30 亿次。微信 13.5 亿月活用户现在在无感知的情况下与 AI 功能进行交互，无需了解底层模型。",
+    },
+    whyItMatters: {
+      en: "WeChat is arguably the world's most important digital platform by daily active engagement. Hunyuan's invisible integration means Tencent has achieved AI distribution at a scale rivalling Apple's iOS 20 announcement — without the fanfare. This 'silent AI rollout' model may become the dominant global pattern: embedded, contextual, and invisible rather than subscription-based.",
+      zh: "按日活跃度衡量，微信可以说是全球最重要的数字平台。混元的无感知整合意味着腾讯在 AI 分发规模上已可比肩苹果 iOS 20 的发布——却未获同等关注。这种「静默式 AI 推送」模式可能成为全球主导的部署模式：嵌入式、情境化、无感知，而非订阅制。",
+    },
+  },
+  {
+    id: 14, rank: 4,
+    category: "AI",
+    region: "china",
+    date: "May 20, 2026",
+    impact: "Medium",
+    sources: [
+      { name: "工信部官网",  url: "https://miit.gov.cn" },
+      { name: "人民日报",   url: "https://people.com.cn" },
+      { name: "Reuters",   url: "https://reuters.com" },
+    ],
+    tags: ["工信部", "AI监管", "行业规范", "政策"],
+    title: {
+      en: "MIIT Releases Binding LLM Industry Standards — Finance and Healthcare First",
+      zh: "工信部发布大模型行业应用强制规范，金融与医疗率先落地",
+    },
+    summary: {
+      en: "China's MIIT published binding technical standards for LLM deployment in regulated industries, with finance and healthcare as the first sectors. The standards require domestic model certification, output audit trails, and AI content watermarking. The framework applies to all models serving more than 1 million users in China, covering both domestic and foreign AI providers.",
+      zh: "工业和信息化部发布受监管行业大模型部署强制性技术规范，金融和医疗健康为首批落地行业。规范要求国内模型认证、输出内容审计追踪及 AI 内容水印。该框架适用于在中国服务超过 100 万用户的所有模型，涵盖国内外 AI 提供商。",
+    },
+    whyItMatters: {
+      en: "China's binding AI standards — arriving 6 months before the EU's equivalent enforcement — represent a different regulatory philosophy: prescriptive technical standards rather than risk-tiered principles. Foreign AI providers face a binary choice: comply with China's certification regime (including source code review) or exit the market. Domestic players (Baidu, Huawei, Alibaba Cloud) are structurally advantaged. This accelerates global AI supply chain bifurcation.",
+      zh: "中国的 AI 强制规范——比欧盟等效执法早 6 个月——代表着不同的监管哲学：规定性技术标准而非风险分级原则。外国 AI 提供商面临二选一：遵守中国认证制度（包括源代码审查）或退出市场。国内企业（百度、华为、阿里云）具有结构性优势。这进一步加速全球 AI 供应链分裂。",
+    },
+  },
+  {
+    id: 15, rank: 5,
+    category: "Finance",
+    region: "china",
+    date: "May 26, 2026",
+    impact: "Medium",
+    sources: [
+      { name: "Wind 资讯", url: "https://wind.com.cn" },
+      { name: "证券时报",  url: "https://stcn.com" },
+      { name: "Financial Times", url: "https://ft.com" },
+    ],
+    tags: ["A股", "算力", "AI概念股", "北向资金"],
+    title: {
+      en: "China A-Share AI Infrastructure Sector Surges 8.3% Weekly — Foreign Inflows Accelerate",
+      zh: "A 股 AI 算力板块单周涨幅 8.3%，北向资金加速流入",
+    },
+    summary: {
+      en: "China's A-share AI infrastructure sector posted an 8.3% weekly gain, led by domestic GPU chipmakers Cambricon, Biren, and Horizon Robotics. Northbound capital flows via Stock Connect reached a weekly high of ¥18.7B as foreign institutional investors rapidly increased exposure to China's domestic AI ecosystem following DeepSeek V4's release and the MIIT regulatory framework.",
+      zh: "中国 A 股 AI 基础设施板块单周上涨 8.3%，国产 GPU 芯片商寒武纪、壁仞科技和地平线机器人领涨。沪深港通北向资金周净流入创阶段新高达 187 亿元，外资机构在 DeepSeek V4 发布和工信部规范出台后快速加仓中国 AI 生态。",
+    },
+    whyItMatters: {
+      en: "Foreign capital re-rating China's domestic AI semiconductor sector is a significant shift after years of geopolitical risk underweight. The confluence of domestic model capability validation (DeepSeek V4) and policy clarity (MIIT standards) is resolving key investment uncertainties. China's AI infrastructure stocks now offer global portfolio managers a credible alternative to the US AI trade at lower valuations with domestic policy tailwinds.",
+      zh: "在多年地缘政治风险导致仓位低配之后，外资重新评估中国 AI 半导体板块是重大转变。国内模型能力验证（DeepSeek V4）与政策明确性（工信部规范）的双重汇合，正在消除关键投资不确定性。中国 AI 基础设施股票现在以更低估值和国内政策顺风，为全球组合经理提供对标美国 AI 交易的可信替代选项。",
+    },
+  },
+]
+
+// ── Overseas news ──────────────────────────────────────────────────────────────
+export const overseasNews = [
   {
     id: 1, rank: 1,
     category: "AI",
+    region: "overseas",
     date: "May 22, 2026",
     impact: "High",
     sources: [
@@ -44,6 +174,7 @@ export const news = [
   {
     id: 2, rank: 2,
     category: "Finance",
+    region: "overseas",
     date: "May 21, 2026",
     impact: "High",
     sources: [
@@ -61,13 +192,14 @@ export const news = [
       zh: "FOMC 以 10 比 2 票决定将联邦基金利率维持在 4.25%-4.50%，并明确指出 AI 驱动的生产力增长令通胀前景更加复杂。鲍威尔主席表示，美联储正在「紧迫研究 AI 对通缩和劳动力市场的影响」——这是 AI 首次作为利率决议的核心因素被公开提及。",
     },
     whyItMatters: {
-      en: "The Fed's acknowledgment of AI as a macro variable is a watershed moment. It signals that monetary policy is now entangled with technology sector trajectories. Markets moved sharply: tech stocks rallied 2.1% on rate-hold relief, but bond yields rose on concerns that AI-driven wage displacement may delay the return to 2% inflation. This creates a new policy feedback loop analysts must model.",
-      zh: "美联储将 AI 纳入宏观变量是一个历史性时刻，标志着货币政策与科技行业轨迹深度绑定。市场大幅波动：科技股因维持利率而上涨 2.1%，但债券收益率因 AI 引发工资压缩可能延迟通胀回落 2% 的担忧而走高，形成分析师必须纳入模型的新型政策反馈循环。",
+      en: "The Fed's acknowledgment of AI as a macro variable is a watershed moment. It signals that monetary policy is now entangled with technology sector trajectories. Markets moved sharply: tech stocks rallied 2.1% on rate-hold relief, but bond yields rose on concerns that AI-driven wage displacement may delay the return to 2% inflation.",
+      zh: "美联储将 AI 纳入宏观变量是一个历史性时刻，标志着货币政策与科技行业轨迹深度绑定。市场大幅波动：科技股因维持利率而上涨 2.1%，但债券收益率因 AI 引发工资压缩可能延迟通胀回落 2% 的担忧而走高。",
     },
   },
   {
     id: 3, rank: 3,
     category: "Technology",
+    region: "overseas",
     date: "May 20, 2026",
     impact: "High",
     sources: [
@@ -85,13 +217,14 @@ export const news = [
       zh: "英伟达开始量产出货 Blackwell Ultra B300 GPU，在相近功耗下推理吞吐量是 H100 的 3.5 倍。48 小时内，随着超大规模数据中心运营商调整采购订单，H100 二级市场现货价格暴跌 42%。AMD 随即加速推进 MI350 路线图。",
     },
     whyItMatters: {
-      en: "The GPU pricing collapse reshapes AI infrastructure economics: training costs fall dramatically, but companies holding H100 inventory face write-down risk. For startups, this is transformative — inference-at-scale becomes newly affordable. For NVIDIA, the upgrade cycle drives revenue but also validates the moat; AMD's reactive roadmap shift confirms NVIDIA's architectural lead remains at least 18 months ahead.",
-      zh: "GPU 价格崩溃重塑 AI 基础设施经济格局：训练成本大幅下降，但持有 H100 库存的企业面临计提减值风险。对初创企业而言，大规模推理成本首次变得可承受。对英伟达而言，升级换代拉动营收的同时也巩固了护城河；AMD 的被动式路线图调整证明英伟达在架构上的领先优势至少仍有 18 个月。",
+      en: "The GPU pricing collapse reshapes AI infrastructure economics: training costs fall dramatically, but companies holding H100 inventory face write-down risk. For startups, inference-at-scale becomes newly affordable. For NVIDIA, the upgrade cycle drives revenue but also validates the moat; AMD's reactive roadmap shift confirms NVIDIA's architectural lead remains at least 18 months ahead.",
+      zh: "GPU 价格崩溃重塑 AI 基础设施经济格局：训练成本大幅下降，但持有 H100 库存的企业面临计提减值风险。对初创企业而言，大规模推理成本首次变得可承受。AMD 的被动式路线图调整证明英伟达在架构上的领先优势至少仍有 18 个月。",
     },
   },
   {
     id: 4, rank: 4,
     category: "AI",
+    region: "overseas",
     date: "May 23, 2026",
     impact: "High",
     sources: [
@@ -109,19 +242,20 @@ export const news = [
       zh: "欧洲 AI 办公室向 19 个国家的 340 家企业发出首批执法通知，理由包括：模型透明度文件不完整、风险评估缺失，或未能向监管机构注册高风险 AI 系统。最高处罚上限为全球年营收的 3%。",
     },
     whyItMatters: {
-      en: "This marks the transition from AI regulation as theory to AI regulation as material corporate risk. Companies operating in the EU must now treat AI compliance with the same urgency as GDPR. Legal and compliance technology vendors are immediate beneficiaries. For US-based AI companies, EU market access now requires costly certification pipelines, fragmenting the global AI deployment landscape.",
-      zh: "这标志着 AI 监管从理论走向实质性企业风险。在欧盟运营的企业现在必须以不亚于 GDPR 的紧迫感对待 AI 合规。法律科技和合规科技公司成为直接受益者。对于美国 AI 企业来说，进入欧盟市场如今需要高成本的认证流程，全球 AI 部署格局由此出现碎片化。",
+      en: "This marks the transition from AI regulation as theory to material corporate risk. Companies operating in the EU must now treat AI compliance with the same urgency as GDPR. For US-based AI companies, EU market access now requires costly certification pipelines, fragmenting the global AI deployment landscape.",
+      zh: "这标志着 AI 监管从理论走向实质性企业风险。在欧盟运营的企业现在必须以不亚于 GDPR 的紧迫感对待 AI 合规。对美国 AI 企业来说，进入欧盟市场如今需要高成本的认证流程，全球 AI 部署格局由此出现碎片化。",
     },
   },
   {
     id: 5, rank: 5,
     category: "Finance",
+    region: "overseas",
     date: "May 20, 2026",
     impact: "High",
     sources: [
-      { name: "Bloomberg",              url: "https://bloomberg.com" },
-      { name: "Financial Times",        url: "https://ft.com" },
-      { name: "Morgan Stanley Research",url: "https://www.morganstanley.com/ideas" },
+      { name: "Bloomberg",               url: "https://bloomberg.com" },
+      { name: "Financial Times",         url: "https://ft.com" },
+      { name: "Morgan Stanley Research", url: "https://www.morganstanley.com/ideas" },
     ],
     tags: ["CapEx", "Big Tech", "Earnings", "Valuation"],
     title: {
@@ -133,13 +267,14 @@ export const news = [
       zh: "微软、Google、Meta 和亚马逊 2026 年一季度财报显示，AI 基础设施年化支出合计达 5200 亿美元，四家公司均上调全年资本支出指引。然而四家中有三家未能完成与 AI 商业化挂钩的收入目标，引发分析师下调评级，相关板块周一跌 4.3%。",
     },
     whyItMatters: {
-      en: "The gap between AI infrastructure investment and AI-attributed revenue is the defining financial tension of 2026. Wall Street's patience — which sustained tech valuations through 2024–25 — is visibly shortening. This creates a bifurcated market: companies with clear AI-to-revenue conversion narratives outperform, while those in 'investment mode' face multiple compression. The CapEx arms race may be approaching a rationalization inflection.",
-      zh: "AI 基础设施投入与 AI 归因收入之间的差距是 2026 年最核心的财务矛盾。华尔街的耐心——正是它支撑着 2024-25 年的科技估值——正在明显收缩。这造成市场分化：AI 收入转化逻辑清晰的企业跑赢市场，而仍处于「投资期」的企业则面临估值倍数压缩。CapEx 军备竞赛或许正在逼近理性化拐点。",
+      en: "The gap between AI infrastructure investment and AI-attributed revenue is the defining financial tension of 2026. Wall Street's patience — which sustained tech valuations through 2024–25 — is visibly shortening. This creates a bifurcated market: companies with clear AI-to-revenue conversion narratives outperform, while those in 'investment mode' face multiple compression.",
+      zh: "AI 基础设施投入与 AI 归因收入之间的差距是 2026 年最核心的财务矛盾。华尔街的耐心——正是它支撑着 2024-25 年的科技估值——正在明显收缩。这造成市场分化：AI 收入转化逻辑清晰的企业跑赢市场，而仍处于「投资期」的企业则面临估值倍数压缩。",
     },
   },
   {
     id: 6, rank: 6,
     category: "AI",
+    region: "overseas",
     date: "May 24, 2026",
     impact: "High",
     sources: [
@@ -157,19 +292,20 @@ export const news = [
       zh: "Anthropic 发布 Claude 4 Opus，支持 200 万 Token 上下文窗口，升级后的电脑操控功能可可靠地自主完成图形界面导航，并引入全新的 Constitutional AI 2.0 对齐架构。该模型在法律文件审查和科学文献综合基准测试中达到业界领先水平。",
     },
     whyItMatters: {
-      en: "Claude 4 directly competes with GPT-5 for enterprise contracts in regulated industries (legal, pharma, financial services) where safety and explainability are procurement differentiators. Computer use 2.0 enables agentic workflows at scale previously requiring custom RPA tooling. Anthropic's Constitutional AI 2.0 publication also advances the academic debate on AI alignment techniques.",
-      zh: "Claude 4 在强调安全性和可解释性的受监管行业（法律、医药、金融服务）的企业合同争夺中直接挑战 GPT-5。电脑操控 2.0 可大规模实现此前需要定制 RPA 工具才能完成的智能体工作流。Anthropic 同步发表的 Constitutional AI 2.0 论文也推进了学术界关于 AI 对齐技术的前沿辩论。",
+      en: "Claude 4 directly competes with GPT-5 for enterprise contracts in regulated industries (legal, pharma, financial services) where safety and explainability are procurement differentiators. Computer use 2.0 enables agentic workflows at scale previously requiring custom RPA tooling.",
+      zh: "Claude 4 在强调安全性和可解释性的受监管行业（法律、医药、金融服务）的企业合同争夺中直接挑战 GPT-5。电脑操控 2.0 可大规模实现此前需要定制 RPA 工具才能完成的智能体工作流。",
     },
   },
   {
     id: 7, rank: 7,
     category: "Technology",
+    region: "overseas",
     date: "May 26, 2026",
     impact: "High",
     sources: [
-      { name: "9to5Mac",        url: "https://9to5mac.com" },
-      { name: "Bloomberg",      url: "https://bloomberg.com" },
-      { name: "The Information",url: "https://www.theinformation.com" },
+      { name: "9to5Mac",         url: "https://9to5mac.com" },
+      { name: "Bloomberg",       url: "https://bloomberg.com" },
+      { name: "The Information", url: "https://www.theinformation.com" },
     ],
     tags: ["Apple", "On-Device AI", "Privacy", "iOS"],
     title: {
@@ -181,13 +317,14 @@ export const news = [
       zh: "苹果 WWDC 2026 主题演讲揭示了 iOS 20 的核心：A20 芯片内置全新神经引擎，可完全在本地实现 GPT-4 级推理，数据无需离开 iPhone。Apple Intelligence 2.0 包含个人情境引擎、具备多应用编排能力的主动式 Siri，以及针对第三方 AI 应用的隐私保护 API。",
     },
     whyItMatters: {
-      en: "On-device AI of this caliber fundamentally disrupts the cloud AI service model. Apple's 1.5B active device installed base represents an instant distribution channel for private, latency-free AI — a direct competitive threat to OpenAI, Anthropic, and Google's consumer AI subscriptions. The third-party API also threatens to commoditize AI model providers by making Apple the distribution layer. AAPL surged 6.8% on the day.",
-      zh: "这一级别的端侧 AI 从根本上颠覆了云端 AI 服务模式。苹果 15 亿台活跃设备构成无与伦比的即时分发渠道，为私密、低延迟的 AI 服务提供支撑，对 OpenAI、Anthropic 和 Google 的消费级 AI 订阅构成直接威胁。第三方 API 还可能通过让苹果成为分发层而蚕食 AI 模型提供商的价值。AAPL 当日大涨 6.8%。",
+      en: "On-device AI of this caliber fundamentally disrupts the cloud AI service model. Apple's 1.5B active device installed base represents an instant distribution channel for private, latency-free AI — a direct competitive threat to OpenAI, Anthropic, and Google's consumer AI subscriptions. AAPL surged 6.8% on the day.",
+      zh: "这一级别的端侧 AI 从根本上颠覆了云端 AI 服务模式。苹果 15 亿台活跃设备构成无与伦比的即时分发渠道，对 OpenAI、Anthropic 和 Google 的消费级 AI 订阅构成直接威胁。AAPL 当日大涨 6.8%。",
     },
   },
   {
     id: 8, rank: 8,
     category: "Finance",
+    region: "overseas",
     date: "May 25, 2026",
     impact: "Medium",
     sources: [
@@ -205,13 +342,14 @@ export const news = [
       zh: "比特币在 75,000 美元附近企稳整固。MicroStrategy、Marathon Digital 以及两家主权财富基金公布二季度合计 80 亿美元的新增比特币购入计划。一种新的机构叙事正在形成：AI 公司和科技企业将比特币视为对冲 AI 引发货币贬值的工具，以及 AI 间微支付网络的储备资产。",
     },
     whyItMatters: {
-      en: "The convergence of AI infrastructure economics and crypto treasury strategy is a new market dynamic. If AI-native companies adopt BTC as a reserve asset at scale, it creates structural demand decoupled from speculative retail cycles. Meanwhile, AI-to-AI micropayment use cases are accelerating Layer 2 Bitcoin adoption in enterprise settings — a development most traditional finance analysts have not priced in.",
-      zh: "AI 基础设施经济学与加密货币国库战略的交汇是全新的市场动态。若 AI 原生企业大规模将比特币纳入储备资产，将产生脱离零售投机周期的结构性需求。与此同时，AI 间微支付场景（智能体为算力和数据付费）正在加速推动比特币 Layer 2 在企业场景的采用——这是大多数传统金融分析师尚未定价的发展趋势。",
+      en: "The convergence of AI infrastructure economics and crypto treasury strategy is a new market dynamic. If AI-native companies adopt BTC as a reserve asset at scale, it creates structural demand decoupled from speculative retail cycles. AI-to-AI micropayment use cases are accelerating Layer 2 Bitcoin adoption in enterprise settings.",
+      zh: "AI 基础设施经济学与加密货币国库战略的交汇是全新的市场动态。若 AI 原生企业大规模将比特币纳入储备资产，将产生脱离零售投机周期的结构性需求。AI 间微支付场景正在加速推动比特币 Layer 2 在企业场景的采用。",
     },
   },
   {
     id: 9, rank: 9,
     category: "Technology",
+    region: "overseas",
     date: "May 21, 2026",
     impact: "High",
     sources: [
@@ -221,27 +359,28 @@ export const news = [
     ],
     tags: ["Cybersecurity", "AI Security", "Supply Chain", "APT"],
     title: {
-      en: "Critical Zero-Day in LangChain Framework Exploited in State-Sponsored Supply Chain Attack",
+      en: "Critical Zero-Day in LangChain Exploited in State-Sponsored Supply Chain Attack",
       zh: "LangChain 框架遭国家级黑客利用关键零日漏洞发动供应链攻击",
     },
     summary: {
-      en: "CISA issued an emergency directive after a state-sponsored threat actor (attributed to APT41) exploited a critical deserialization vulnerability in LangChain v0.3.x, compromising AI agent pipelines at 47 identified organizations including three defense contractors and a major US bank. Patches were released within 18 hours but exploitation windows remain open for unpatched systems.",
-      zh: "CISA 发布紧急指令，指出国家级威胁行为者（归因为 APT41）利用 LangChain v0.3.x 版本中的严重反序列化漏洞，入侵了 47 个已确认机构的 AI 智能体管道，包括三家国防承包商和一家大型美国银行。补丁在 18 小时内发布，但未打补丁系统的利用窗口仍然存在。",
+      en: "CISA issued an emergency directive after a state-sponsored threat actor (attributed to APT41) exploited a critical deserialization vulnerability in LangChain v0.3.x, compromising AI agent pipelines at 47 identified organizations including three defense contractors and a major US bank. Patches were released within 18 hours.",
+      zh: "CISA 发布紧急指令，指出国家级威胁行为者（归因为 APT41）利用 LangChain v0.3.x 版本中的严重反序列化漏洞，入侵了 47 个已确认机构的 AI 智能体管道，包括三家国防承包商和一家大型美国银行。补丁在 18 小时内发布。",
     },
     whyItMatters: {
-      en: "This is the first high-profile, state-sponsored attack explicitly targeting AI application infrastructure rather than traditional endpoints. LangChain's position as the dominant AI orchestration framework means the blast radius is uniquely broad. The incident catalyzes AI-specific security tooling as a standalone market category and forces every enterprise with an AI agent deployment to conduct immediate security audits — a significant unplanned cost.",
-      zh: "这是首次有高知名度、国家级支持的攻击明确以 AI 应用基础设施而非传统终端为目标。LangChain 作为主流 AI 编排框架的地位使得此次攻击的波及范围尤为广泛。此事件将 AI 专属安全工具推上独立市场品类的轨道，也迫使所有已部署 AI 智能体的企业立即开展安全审计——这是一笔重大的计划外支出。",
+      en: "This is the first high-profile, state-sponsored attack explicitly targeting AI application infrastructure. LangChain's position as the dominant AI orchestration framework means the blast radius is uniquely broad. The incident catalyzes AI-specific security tooling as a standalone market category and forces every enterprise with an AI agent deployment to conduct immediate security audits.",
+      zh: "这是首次有高知名度、国家级支持的攻击明确以 AI 应用基础设施为目标。LangChain 作为主流 AI 编排框架的地位使得此次攻击的波及范围尤为广泛。此事件将 AI 专属安全工具推上独立市场品类的轨道，也迫使所有已部署 AI 智能体的企业立即开展安全审计。",
     },
   },
   {
     id: 10, rank: 10,
     category: "AI",
+    region: "overseas",
     date: "May 23, 2026",
     impact: "High",
     sources: [
-      { name: "Nature",         url: "https://nature.com" },
-      { name: "DeepMind Blog",  url: "https://deepmind.google/research" },
-      { name: "STAT News",      url: "https://www.statnews.com" },
+      { name: "Nature",        url: "https://nature.com" },
+      { name: "DeepMind Blog", url: "https://deepmind.google/research" },
+      { name: "STAT News",     url: "https://www.statnews.com" },
     ],
     tags: ["DeepMind", "Biotech", "Drug Discovery", "Science"],
     title: {
@@ -249,19 +388,23 @@ export const news = [
       zh: "谷歌 DeepMind AlphaFold 4 绘制完整人类蛋白质组互作图谱",
     },
     summary: {
-      en: "Google DeepMind published AlphaFold 4 in Nature, achieving 94% accuracy in predicting the full human protein-protein interaction network — a biological problem considered unsolvable a decade ago. The model simultaneously outputs predicted drug-binding pockets, reducing pre-clinical drug discovery timelines from 4–6 years to under 18 months in early trials.",
-      zh: "谷歌 DeepMind 在《自然》杂志发表 AlphaFold 4，在预测完整人类蛋白质-蛋白质相互作用网络方面达到 94% 的准确率——这一生物学难题十年前被认为无法解决。该模型同时输出预测的药物结合口袋，在早期试验中将临床前药物发现周期从 4-6 年压缩至 18 个月以内。",
+      en: "Google DeepMind published AlphaFold 4 in Nature, achieving 94% accuracy in predicting the full human protein-protein interaction network. The model simultaneously outputs predicted drug-binding pockets, reducing pre-clinical drug discovery timelines from 4–6 years to under 18 months in early trials.",
+      zh: "谷歌 DeepMind 在《自然》杂志发表 AlphaFold 4，在预测完整人类蛋白质-蛋白质相互作用网络方面达到 94% 的准确率。该模型同时输出预测的药物结合口袋，在早期试验中将临床前药物发现周期从 4-6 年压缩至 18 个月以内。",
     },
     whyItMatters: {
-      en: "AlphaFold 4 is the clearest demonstration to date that AI is delivering transformative, measurable scientific value — not just productivity gains. Pharma stocks (Pfizer, Roche, Moderna) moved 3–8% on the news. This provides powerful narrative ammunition for pro-innovation AI advocates pushing back against EU-style regulation. It also signals that AI's most significant near-term GDP impact may come from healthcare and biotech rather than software productivity.",
-      zh: "AlphaFold 4 是迄今为止 AI 带来可量化、可变革科学价值最清晰的证明——而非仅仅是生产力提升。大型药企股票（辉瑞、罗氏、Moderna）因此消息上涨 3-8%。此成果为推动「创新优先」的 AI 倡导者提供了有力的政治和公众叙事弹药，以抵制欧盟式监管。它还预示着 AI 在近期内最显著的 GDP 影响可能来自医疗健康和生物技术，而非软件生产力。",
+      en: "AlphaFold 4 is the clearest demonstration to date that AI is delivering transformative, measurable scientific value. Pharma stocks (Pfizer, Roche, Moderna) moved 3–8% on the news. It also signals that AI's most significant near-term GDP impact may come from healthcare and biotech rather than software productivity.",
+      zh: "AlphaFold 4 是迄今为止 AI 带来可量化、可变革科学价值最清晰的证明。大型药企股票（辉瑞、罗氏、Moderna）因此消息上涨 3-8%。它还预示着 AI 在近期内最显著的 GDP 影响可能来自医疗健康和生物技术，而非软件生产力。",
     },
   },
 ]
 
-// derived counts ───────────────────────────────────────────────────────────────
+// combined + derived ──────────────────────────────────────────────────────────
+export const news = [...chinaNews, ...overseasNews]
+
 export const categoryMeta = {
   AI:         { count: news.filter(n => n.category === "AI").length },
   Technology: { count: news.filter(n => n.category === "Technology").length },
   Finance:    { count: news.filter(n => n.category === "Finance").length },
+  china:      { count: chinaNews.length },
+  overseas:   { count: overseasNews.length },
 }

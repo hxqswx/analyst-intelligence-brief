@@ -5,10 +5,19 @@
 //   RESEND_API_KEY   — get from https://resend.com (free tier: 3000 emails/month)
 
 import { Resend } from 'resend'
+import { Redis } from '@upstash/redis'
 import { news, synthesis, weekRange, publishedAt } from '../src/data.js'
 
-const TO      = ['mikexiangwang@gmail.com', 'xiangwang0083@gmail.com']
-const FROM    = 'Analyst Brief <brief@exploring-china.com>'
+const FROM          = 'Analyst Brief <brief@exploring-china.com>'
+const FALLBACK_TO   = ['mikexiangwang@gmail.com', 'xiangwang0083@gmail.com']
+const REDIS_KEY     = 'brief:recipients'
+
+function getRedis() {
+  const url   = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (!url || !token) return null
+  return new Redis({ url, token })
+}
 
 // ── category colours (email-safe inline styles) ──────────────────────────────
 const CAT_STYLE = {
@@ -260,13 +269,25 @@ export default async function handler(req, res) {
   const body = await parseBody(req)
   const lang = body?.lang ?? 'zh'
 
+  // read recipients from Redis, fall back to hardcoded list
+  let toList = FALLBACK_TO
+  try {
+    const redis = getRedis()
+    if (redis) {
+      const stored = await redis.get(REDIS_KEY)
+      if (Array.isArray(stored) && stored.length > 0) toList = stored
+    }
+  } catch (e) {
+    console.warn('[send-brief] Redis read failed, using fallback recipients:', e.message)
+  }
+
   try {
     const resend = new Resend(apiKey)
     const html   = buildHTML(lang)
 
     const { data, error } = await resend.emails.send({
       from:    FROM,
-      to:      TO,
+      to:      toList,
       subject: `${lang === 'zh' ? '分析师情报简报' : 'Analyst Intelligence Brief'} — ${weekRange}`,
       html,
     })
