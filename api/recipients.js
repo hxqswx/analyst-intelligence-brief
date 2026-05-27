@@ -52,8 +52,13 @@ export default async function handler(req, res) {
 
   // ── GET — public, no auth needed ─────────────────────────────────────────
   if (req.method === 'GET') {
-    const recipients = await redis.get(REDIS_KEY) ?? []
-    return res.status(200).json({ recipients })
+    try {
+      const recipients = await redis.get(REDIS_KEY) ?? []
+      return res.status(200).json({ recipients })
+    } catch (e) {
+      console.error('[recipients] Redis GET failed:', e.message)
+      return res.status(500).json({ error: 'Redis read failed: ' + e.message })
+    }
   }
 
   // ── POST / DELETE — require admin credential ──────────────────────────────
@@ -80,24 +85,38 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Credential expired — please sign in again' })
   }
 
-  let recipients = await redis.get(REDIS_KEY) ?? []
+  let recipients
+  try {
+    recipients = await redis.get(REDIS_KEY) ?? []
+  } catch (e) {
+    console.error('[recipients] Redis GET failed:', e.message)
+    return res.status(500).json({ error: 'Redis read failed: ' + e.message })
+  }
 
   if (req.method === 'POST') {
     if (!email || !email.includes('@')) {
       return res.status(400).json({ error: 'Invalid email address' })
     }
-    if (!recipients.includes(email)) {
-      recipients = [...recipients, email]
-      await redis.set(REDIS_KEY, recipients)
+    try {
+      if (!recipients.includes(email)) {
+        recipients = [...recipients, email]
+        await redis.set(REDIS_KEY, recipients)
+      }
+      return res.status(200).json({ recipients })
+    } catch (e) {
+      return res.status(500).json({ error: 'Redis write failed: ' + e.message })
     }
-    return res.status(200).json({ recipients })
   }
 
   if (req.method === 'DELETE') {
     if (!email) return res.status(400).json({ error: 'Missing email' })
-    recipients = recipients.filter(r => r !== email)
-    await redis.set(REDIS_KEY, recipients)
-    return res.status(200).json({ recipients })
+    try {
+      recipients = recipients.filter(r => r !== email)
+      await redis.set(REDIS_KEY, recipients)
+      return res.status(200).json({ recipients })
+    } catch (e) {
+      return res.status(500).json({ error: 'Redis write failed: ' + e.message })
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

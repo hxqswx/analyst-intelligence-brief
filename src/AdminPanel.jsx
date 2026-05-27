@@ -46,9 +46,16 @@ export default function AdminPanel({ onClose }) {
     setLoading(true)
     try {
       const res = await fetch('/api/recipients')
-      const data = await res.json()
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch {
+        setMsg({ text: `Server error: ${text.slice(0, 120)}`, ok: false })
+        setLoading(false)
+        return
+      }
+      if (!res.ok) throw new Error(data.error ?? res.statusText)
       setRecipients(data.recipients ?? [])
-    } catch { setMsg({ text: 'Failed to load recipients', ok: false }) }
+    } catch (e) { setMsg({ text: e.message, ok: false }) }
     setLoading(false)
   }
 
