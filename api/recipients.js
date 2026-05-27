@@ -16,7 +16,12 @@ function getRedis() {
   const url   = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
   if (!url || !token) return null
-  return new Redis({ url, token })
+  try {
+    return new Redis({ url, token })
+  } catch (e) {
+    console.error('[recipients] Redis init failed:', e.message)
+    return { __initError: e.message }   // sentinel — handler checks this
+  }
 }
 
 // decode Google JWT payload without signature verification
@@ -47,6 +52,11 @@ export default async function handler(req, res) {
   if (!redis) {
     return res.status(500).json({
       error: 'Upstash Redis not configured. Add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to Vercel env vars.'
+    })
+  }
+  if (redis.__initError) {
+    return res.status(500).json({
+      error: `Invalid Upstash Redis URL: ${redis.__initError}. URL must start with https:// (copy from Upstash dashboard → REST API tab).`
     })
   }
 
