@@ -22,7 +22,11 @@ export const news = [
     category: "AI",
     date: "May 22, 2026",
     impact: "High",
-    sources: ["Reuters", "The Verge", "Bloomberg Tech"],
+    sources: [
+      { name: "Reuters",        url: "https://reuters.com/technology" },
+      { name: "The Verge",      url: "https://theverge.com" },
+      { name: "Bloomberg Tech", url: "https://bloomberg.com/technology" },
+    ],
     tags: ["LLM", "Agents", "Enterprise AI", "OpenAI"],
     title: {
       en: "OpenAI Launches GPT-5: Autonomous Agents Go Mainstream",
@@ -42,7 +46,11 @@ export const news = [
     category: "Finance",
     date: "May 21, 2026",
     impact: "High",
-    sources: ["Wall Street Journal", "Financial Times", "CNBC"],
+    sources: [
+      { name: "Wall Street Journal", url: "https://wsj.com" },
+      { name: "Financial Times",     url: "https://ft.com" },
+      { name: "CNBC",                url: "https://cnbc.com" },
+    ],
     tags: ["Federal Reserve", "Monetary Policy", "Macro", "Interest Rates"],
     title: {
       en: "Federal Reserve Holds Rates at 4.25% — Cites AI Productivity Uncertainty",
@@ -62,7 +70,11 @@ export const news = [
     category: "Technology",
     date: "May 20, 2026",
     impact: "High",
-    sources: ["Tom's Hardware", "The Register", "Bloomberg"],
+    sources: [
+      { name: "Tom's Hardware", url: "https://www.tomshardware.com" },
+      { name: "The Register",   url: "https://www.theregister.com" },
+      { name: "Bloomberg",      url: "https://bloomberg.com" },
+    ],
     tags: ["Semiconductors", "NVIDIA", "GPU", "Infrastructure"],
     title: {
       en: "NVIDIA Blackwell Ultra B300 Begins Mass Shipment; H100 Prices Crater 42%",
@@ -82,7 +94,11 @@ export const news = [
     category: "AI",
     date: "May 23, 2026",
     impact: "High",
-    sources: ["Politico Europe", "Reuters", "TechCrunch"],
+    sources: [
+      { name: "Politico Europe", url: "https://www.politico.eu" },
+      { name: "Reuters",         url: "https://reuters.com" },
+      { name: "TechCrunch",      url: "https://techcrunch.com" },
+    ],
     tags: ["Regulation", "EU AI Act", "Compliance", "Policy"],
     title: {
       en: "EU AI Act General-Purpose AI Tier Enforcement Begins — 340 Enterprises Cited",
@@ -102,7 +118,11 @@ export const news = [
     category: "Finance",
     date: "May 20, 2026",
     impact: "High",
-    sources: ["Bloomberg", "Financial Times", "Morgan Stanley Research"],
+    sources: [
+      { name: "Bloomberg",              url: "https://bloomberg.com" },
+      { name: "Financial Times",        url: "https://ft.com" },
+      { name: "Morgan Stanley Research",url: "https://www.morganstanley.com/ideas" },
+    ],
     tags: ["CapEx", "Big Tech", "Earnings", "Valuation"],
     title: {
       en: "Big Tech AI CapEx Hits $520B Annualized Rate — Investor Patience Fraying",
@@ -122,7 +142,11 @@ export const news = [
     category: "AI",
     date: "May 24, 2026",
     impact: "High",
-    sources: ["Anthropic Blog", "The Verge", "VentureBeat"],
+    sources: [
+      { name: "Anthropic Blog", url: "https://anthropic.com/news" },
+      { name: "The Verge",      url: "https://theverge.com" },
+      { name: "VentureBeat",    url: "https://venturebeat.com" },
+    ],
     tags: ["Anthropic", "Claude", "LLM", "Safety"],
     title: {
       en: "Anthropic Releases Claude 4 Opus: 2M-Token Context, Computer Use 2.0",
@@ -142,7 +166,11 @@ export const news = [
     category: "Technology",
     date: "May 26, 2026",
     impact: "High",
-    sources: ["9to5Mac", "Bloomberg", "The Information"],
+    sources: [
+      { name: "9to5Mac",        url: "https://9to5mac.com" },
+      { name: "Bloomberg",      url: "https://bloomberg.com" },
+      { name: "The Information",url: "https://www.theinformation.com" },
+    ],
     tags: ["Apple", "On-Device AI", "Privacy", "iOS"],
     title: {
       en: "Apple WWDC 2026: iOS 20 Debuts On-Device GPT-4-Class Intelligence",
@@ -162,15 +190,19 @@ export const news = [
     category: "Finance",
     date: "May 25, 2026",
     impact: "Medium",
-    sources: ["CoinDesk", "Bloomberg Crypto", "Reuters"],
+    sources: [
+      { name: "CoinDesk",         url: "https://coindesk.com" },
+      { name: "Bloomberg Crypto", url: "https://bloomberg.com/crypto" },
+      { name: "Reuters",          url: "https://reuters.com" },
+    ],
     tags: ["Bitcoin", "Crypto", "Treasury", "Institutional"],
     title: {
-      en: "Bitcoin Surpasses $158,000 as Institutional AI Treasury Strategies Emerge",
-      zh: "比特币突破 15.8 万美元，机构 AI 国库战略初现端倪",
+      en: "Bitcoin Holds $75,000 as Institutional AI Treasury Demand Builds Steadily",
+      zh: "比特币企稳 75,000 美元，机构 AI 国库战略稳步积累",
     },
     summary: {
-      en: "Bitcoin reached an all-time high of $158,400 after MicroStrategy, Marathon Digital, and two sovereign wealth funds disclosed combined $12B in new BTC purchases. A new institutional narrative is forming: AI companies and tech firms are treating Bitcoin as a hedge against AI-driven currency debasement and as a reserve asset in AI-to-AI micropayment networks.",
-      zh: "MicroStrategy、Marathon Digital 以及两家主权财富基金公布合计 120 亿美元的新增比特币购入计划后，比特币触及历史新高 158,400 美元。一种新的机构叙事正在形成：AI 公司和科技企业将比特币视为对冲 AI 引发货币贬值的工具，以及 AI 间微支付网络的储备资产。",
+      en: "Bitcoin consolidated around $75,000 as MicroStrategy, Marathon Digital, and two sovereign wealth funds disclosed combined $8B in new BTC purchases over Q2. A new institutional narrative is forming: AI companies and tech firms are treating Bitcoin as a hedge against AI-driven currency debasement and as a reserve asset in AI-to-AI micropayment networks.",
+      zh: "比特币在 75,000 美元附近企稳整固。MicroStrategy、Marathon Digital 以及两家主权财富基金公布二季度合计 80 亿美元的新增比特币购入计划。一种新的机构叙事正在形成：AI 公司和科技企业将比特币视为对冲 AI 引发货币贬值的工具，以及 AI 间微支付网络的储备资产。",
     },
     whyItMatters: {
       en: "The convergence of AI infrastructure economics and crypto treasury strategy is a new market dynamic. If AI-native companies adopt BTC as a reserve asset at scale, it creates structural demand decoupled from speculative retail cycles. Meanwhile, AI-to-AI micropayment use cases are accelerating Layer 2 Bitcoin adoption in enterprise settings — a development most traditional finance analysts have not priced in.",
@@ -182,7 +214,11 @@ export const news = [
     category: "Technology",
     date: "May 21, 2026",
     impact: "High",
-    sources: ["CISA Advisory", "CrowdStrike", "Wired"],
+    sources: [
+      { name: "CISA Advisory", url: "https://www.cisa.gov/news-events/cybersecurity-advisories" },
+      { name: "CrowdStrike",   url: "https://crowdstrike.com/blog" },
+      { name: "Wired",         url: "https://wired.com" },
+    ],
     tags: ["Cybersecurity", "AI Security", "Supply Chain", "APT"],
     title: {
       en: "Critical Zero-Day in LangChain Framework Exploited in State-Sponsored Supply Chain Attack",
@@ -202,7 +238,11 @@ export const news = [
     category: "AI",
     date: "May 23, 2026",
     impact: "High",
-    sources: ["Nature", "DeepMind Blog", "STAT News"],
+    sources: [
+      { name: "Nature",         url: "https://nature.com" },
+      { name: "DeepMind Blog",  url: "https://deepmind.google/research" },
+      { name: "STAT News",      url: "https://www.statnews.com" },
+    ],
     tags: ["DeepMind", "Biotech", "Drug Discovery", "Science"],
     title: {
       en: "Google DeepMind AlphaFold 4 Maps Full Human Proteome Interactions",

@@ -181,9 +181,16 @@ function NewsCard({ item, index }) {
                               flex flex-wrap items-center gap-1.5 text-2xs text-slate-600">
                 <span>{t.sources}</span>
                 {item.sources.map((src, i) => (
-                  <span key={src} className="text-slate-500">
-                    {src}{i < item.sources.length - 1 ? ' ·' : ''}
-                  </span>
+                  <a
+                    key={src.name}
+                    href={src.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="text-slate-500 hover:text-ai underline underline-offset-2 transition-colors"
+                  >
+                    {src.name}{i < item.sources.length - 1 ? ' ·' : ''}
+                  </a>
                 ))}
               </div>
             </div>
@@ -290,6 +297,7 @@ function Header({ lang, setLang }) {
   const [online, setOnline]         = useState(navigator.onLine)
   const [refreshing, setRefreshing] = useState(false)
   const [emailStatus, setEmailStatus] = useState(null) // null | 'sending' | 'ok' | 'err'
+  const [emailErr,    setEmailErr]    = useState('')
 
   // track real online/offline status
   useEffect(() => {
@@ -312,13 +320,16 @@ function Header({ lang, setLang }) {
     setEmailStatus('sending')
     try {
       const res = await fetch('/api/send-brief', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang }) })
-      if (!res.ok) throw new Error(await res.text())
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
       setEmailStatus('ok')
+      setEmailErr('')
       setTimeout(() => setEmailStatus(null), 3500)
     } catch (e) {
       console.error(e)
+      setEmailErr(e.message.slice(0, 120))
       setEmailStatus('err')
-      setTimeout(() => setEmailStatus(null), 3500)
+      setTimeout(() => { setEmailStatus(null); setEmailErr('') }, 5000)
     }
   }
 
@@ -329,6 +340,11 @@ function Header({ lang, setLang }) {
   return (
     <header className="sticky top-0 z-30 bg-surface-base/90 backdrop-blur-xl
                        border-b border-surface-line safe-top">
+      {emailErr && (
+        <div className="max-w-2xl mx-auto px-4 py-1.5 text-2xs text-red-400 bg-red-500/10 border-b border-red-500/20 font-mono truncate">
+          ✗ {emailErr}
+        </div>
+      )}
       <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-ai via-tech to-fin

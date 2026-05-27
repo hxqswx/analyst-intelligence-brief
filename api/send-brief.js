@@ -80,7 +80,9 @@ function buildHTML(lang = 'zh') {
                   ${tx(item.whyItMatters)}
                 </div>
                 <div style="margin-top:6px;font-size:11px;color:#9ca3af;">
-                  ${isZh ? '来源：' : 'Sources: '}${item.sources.join(' · ')}
+                  ${isZh ? '来源：' : 'Sources: '}${item.sources.map(s =>
+                    `<a href="${s.url}" style="color:#60a5fa;text-decoration:none;">${s.name}</a>`
+                  ).join(' · ')}
                 </div>
               </td>
             </tr>
@@ -228,6 +230,19 @@ function buildHTML(lang = 'zh') {
 </html>`
 }
 
+// ── parse raw body (Vercel Node.js functions don't always auto-parse JSON) ────
+async function parseBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body   // already parsed
+  return new Promise((resolve) => {
+    let raw = ''
+    req.on('data', chunk => { raw += chunk })
+    req.on('end', () => {
+      try { resolve(JSON.parse(raw)) } catch { resolve({}) }
+    })
+    req.on('error', () => resolve({}))
+  })
+}
+
 // ── handler ───────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   // Allow GET (cron) and POST (manual trigger from UI)
@@ -238,11 +253,12 @@ export default async function handler(req, res) {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
     return res.status(500).json({
-      error: 'RESEND_API_KEY not set. Add it in Vercel → Settings → Environment Variables.'
+      error: 'RESEND_API_KEY not set — add it in Vercel → Settings → Environment Variables (resend.com for a free key).'
     })
   }
 
-  const lang = req.body?.lang ?? 'zh'
+  const body = await parseBody(req)
+  const lang = body?.lang ?? 'zh'
 
   try {
     const resend = new Resend(apiKey)
