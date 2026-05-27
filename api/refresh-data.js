@@ -1,34 +1,34 @@
 // Vercel Serverless Function — GET /api/refresh-data
-// Called hourly by Vercel Cron + manually via POST from admin panel.
-// Fetches RSS headlines → Claude AI → stores structured brief in Redis.
+// Called on-demand (lazy refresh from brief-data.js) + manually from admin panel.
+// Fetches RSS headlines → Groq (free) → stores structured brief in Redis.
 //
 // Required env vars:
-//   ANTHROPIC_API_KEY            — from console.anthropic.com
+//   GROQ_API_KEY                 — free at console.groq.com
 //   UPSTASH_REDIS_REST_URL       — from upstash.com
 //   UPSTASH_REDIS_REST_TOKEN     — from upstash.com
 // Optional:
-//   ANTHROPIC_MODEL              — defaults to claude-3-5-haiku-20241022
+//   GROQ_MODEL                   — defaults to llama-3.3-70b-versatile
 
-import Anthropic from '@anthropic-ai/sdk'
-import { Redis }  from '@upstash/redis'
+import Groq  from 'groq-sdk'
+import { Redis } from '@upstash/redis'
 
 export const REDIS_DATA_KEY = 'brief:live_data'
 export const REDIS_TS_KEY   = 'brief:live_ts'
 
-// ── Free RSS sources (no API key needed) ────────────────────────────────────
+// ── Free RSS sources ──────────────────────────────────────────────────────────
 const RSS_FEEDS = [
   'https://feeds.bbci.co.uk/news/technology/rss.xml',
   'https://feeds.bbci.co.uk/news/business/rss.xml',
   'https://techcrunch.com/feed/',
-  'https://www.scmp.com/rss/4/feed',          // South China Morning Post — Asia/China focus
+  'https://www.scmp.com/rss/4/feed',
 ]
 
-// ── XML helpers ──────────────────────────────────────────────────────────────
+// ── XML helpers ───────────────────────────────────────────────────────────────
 function unCDATA(s = '') {
   return s
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g,  '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '').trim()
 }
 function xmlTag(xml, tag) {
@@ -46,7 +46,7 @@ async function fetchFeed(url) {
     const xml = await r.text()
     const out = []
     for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
-      const seg  = m[1]
+      const seg   = m[1]
       const title = xmlTag(seg, 'title')
       const desc  = xmlTag(seg, 'description').slice(0, 400)
       const link  = xmlTag(seg, 'link') ||
@@ -61,7 +61,7 @@ async function fetchFeed(url) {
   }
 }
 
-// ── Week range helper ─────────────────────────────────────────────────────────
+// ── Week range ────────────────────────────────────────────────────────────────
 function getWeekRange() {
   const now = new Date()
   const day = now.getDay()
@@ -85,33 +85,34 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' })
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) return res.status(500).json({ error: 'GROQ_API_KEY not set — get a free key at console.groq.com' })
 
-  // ── 1. Fetch RSS feeds in parallel ──────────────────────────────────────
+  // 1. Fetch RSS feeds in parallel
   const feeds = await Promise.all(RSS_FEEDS.map(fetchFeed))
   const items = feeds.flat()
   console.log(`[refresh-data] fetched ${items.length} headlines from ${RSS_FEEDS.length} feeds`)
 
   if (items.length === 0) {
-    return res.status(500).json({ error: 'All RSS feeds returned no items — check network access' })
+    return res.status(500).json({ error: 'All RSS feeds returned no items' })
   }
 
   const today     = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const weekRange = getWeekRange()
 
   const headlines = items.slice(0, 25)
-    .map((it, i) => `[${i + 1}] ${it.title}\n${it.desc ? it.desc.slice(0, 250) : '(no description)'}\nURL: ${it.link || 'n/a'}`)
+    .map((it, i) => `[${i + 1}] ${it.title}\n${it.desc || '(no description)'}\nURL: ${it.link || 'n/a'}`)
     .join('\n\n')
 
-  // ── 2. Generate structured brief via Claude ──────────────────────────────
+  // 2. Generate structured brief via Groq
+  const model  = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
   const prompt = `Today is ${today}. You are an analyst news processor creating a bilingual intelligence brief.
 
-Analyze these recent headlines and build a structured JSON brief:
+Analyze these recent headlines:
 
 ${headlines}
 
-Return ONLY a raw JSON object — no markdown fences, no commentary. Schema:
+Return a JSON object with this exact structure:
 {
   "news": [
     {
@@ -140,36 +141,33 @@ Return ONLY a raw JSON object — no markdown fences, no commentary. Schema:
 
 Rules:
 - Select exactly 10 items, ranked 1-10 by importance
-- region "china" for news about Chinese companies (Baidu, Tencent, Alibaba, Huawei, ByteDance, Xiaomi, JD, PDD, Meituan, etc.) or China economy/policy; all others "overseas"
-- category: "AI" for AI/ML/LLM/chatbots; "Technology" for hardware/software/cybersecurity/semiconductors; "Finance" for markets/crypto/banks/economy
+- region "china" for Chinese companies (Baidu, Tencent, Alibaba, Huawei, ByteDance, Xiaomi, JD, PDD, Meituan) or China economy/policy; all others "overseas"
+- category: "AI" for AI/ML/LLM; "Technology" for hardware/software/cybersecurity; "Finance" for markets/crypto/banks
 - impact: "High" for major market-moving; "Medium" for notable; "Low" for minor
 - tags: 2-3 short keywords
 - sectors in synthesis: 1-2 items from ["AI", "Technology", "Finance"]
-- sources: use the URL from the headline list; name = the publication name
-- Output ONLY the JSON object`
+- sources: use the URL from the list above; name = publication name`
 
   try {
-    const client  = new Anthropic({ apiKey })
-    const model   = process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-20241022'
+    const groq = new Groq({ apiKey })
 
-    const message = await client.messages.create({
+    const completion = await groq.chat.completions.create({
       model,
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
+      messages:        [{ role: 'user', content: prompt }],
+      max_tokens:      4096,
+      temperature:     0.3,
+      response_format: { type: 'json_object' },   // Groq JSON mode — no parsing failures
     })
 
-    const raw  = message.content[0].text.trim()
-    // Strip any accidental markdown fences
-    const json = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
-    const data = JSON.parse(json)
+    const data = JSON.parse(completion.choices[0].message.content)
 
     if (!Array.isArray(data.news) || data.news.length === 0) {
-      throw new Error('Claude returned an empty news array')
+      throw new Error('Model returned an empty news array')
     }
 
     console.log(`[refresh-data] generated ${data.news.length} items via ${model}`)
 
-    // ── 3. Store in Redis ────────────────────────────────────────────────────
+    // 3. Store in Redis
     const redis = getRedis()
     if (redis) {
       await redis.set(REDIS_DATA_KEY, data)
@@ -179,13 +177,7 @@ Rules:
       console.warn('[refresh-data] Redis not configured — data not persisted')
     }
 
-    return res.status(200).json({
-      ok:        true,
-      items:     data.news.length,
-      weekRange: data.weekRange,
-      model,
-      stored:    !!redis,
-    })
+    return res.status(200).json({ ok: true, items: data.news.length, weekRange: data.weekRange, model, stored: !!redis })
   } catch (e) {
     console.error('[refresh-data] error:', e.message)
     return res.status(500).json({ error: e.message })

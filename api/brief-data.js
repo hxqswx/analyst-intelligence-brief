@@ -50,7 +50,7 @@ export default async function handler(req, res) {
       }
 
       // Stale or empty — trigger inline refresh then re-read
-      if (process.env.ANTHROPIC_API_KEY) {
+      if (process.env.GROQ_API_KEY) {
         console.log('[brief-data] cache stale, triggering inline refresh…')
         await triggerRefresh(req)
         const [fresh, freshTs] = await Promise.all([
