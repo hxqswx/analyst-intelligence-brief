@@ -7,6 +7,7 @@
 import { Resend } from 'resend'
 import { Redis } from '@upstash/redis'
 import { news, synthesis, weekRange, publishedAt } from '../src/data.js'
+import { refreshBriefData, recordRefreshFailure } from './refresh-data.js'
 
 const FROM          = 'Analyst Brief <brief@exploring-china.com>'
 const FALLBACK_TO   = ['mikexiangwang@gmail.com', 'xiangwang0083@gmail.com']
@@ -18,6 +19,14 @@ function getRedis() {
   if (!url || !token) return null
   return new Redis({ url, token })
 }
+
+// ── country flag helper ───────────────────────────────────────────────────────
+const COUNTRY_FLAGS = {
+  US: '🇺🇸', UK: '🇬🇧', CN: '🇨🇳', HK: '🇭🇰', EU: '🇪🇺',
+  JP: '🇯🇵', KR: '🇰🇷', IN: '🇮🇳', SG: '🇸🇬', AU: '🇦🇺',
+  DE: '🇩🇪', FR: '🇫🇷', Global: '🌐',
+}
+const countryFlag = (c) => COUNTRY_FLAGS[c] ?? '🌐'
 
 // ── category colours (email-safe inline styles) ──────────────────────────────
 const CAT_STYLE = {
@@ -32,7 +41,13 @@ const IMPACT_STYLE = {
 }
 
 // ── HTML email template ───────────────────────────────────────────────────────
-function buildHTML(lang = 'zh', newsList = news) {
+// briefData: { news, synthesis, weekRange, publishedAt } — falls back to static imports
+function buildHTML(lang = 'zh', briefData = {}) {
+  const newsList    = briefData.news        ?? news
+  const syn         = briefData.synthesis   ?? synthesis
+  const wr          = briefData.weekRange   ?? weekRange
+  const pubAt       = briefData.publishedAt ?? publishedAt
+
   const isZh = lang === 'zh'
   const tx = obj => (typeof obj === 'object' ? (obj[lang] ?? obj.en) : obj)
 
@@ -70,6 +85,7 @@ function buildHTML(lang = 'zh', newsList = news) {
                 <span style="background:${is.bg};color:${is.color};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;">
                   ${impactLabel(item.impact)}
                 </span>
+                ${item.country ? `&nbsp;<span style="background:#f3f4f6;color:#374151;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;">${countryFlag(item.country)} ${item.country}</span>` : ''}
                 <span style="float:right;font-size:11px;color:#9ca3af;">${item.date}</span>
               </td>
             </tr>
@@ -117,17 +133,17 @@ function buildHTML(lang = 'zh', newsList = news) {
         </span>
         &nbsp;&nbsp;
         <span style="background:rgba(251,191,36,0.15);color:#f59e0b;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">
-          ${synthesis.debateScore}% ${isZh ? '热议' : 'debate'}
+          ${syn.debateScore}% ${isZh ? '热议' : 'debate'}
         </span>
       </td>
     </tr>
     <tr>
       <td style="padding:16px 18px;">
         <div style="font-size:16px;font-weight:800;color:#fbbf24;line-height:1.4;margin-bottom:12px;">
-          ${tx(synthesis.topic)}
+          ${tx(syn.topic)}
         </div>
         <div style="font-size:13px;color:#9ca3af;line-height:1.8;">
-          ${tx(synthesis.summary)}
+          ${tx(syn.summary)}
         </div>
       </td>
     </tr>
@@ -160,7 +176,7 @@ function buildHTML(lang = 'zh', newsList = news) {
                     ${isZh ? '分析师情报简报' : 'Analyst Intelligence Brief'}
                   </div>
                   <div style="font-size:12px;color:#484f58;margin-top:3px;font-family:monospace;">
-                    ${weekRange} &nbsp;·&nbsp; ${isZh ? '每日归档' : 'Daily Archive'}
+                    ${wr} &nbsp;·&nbsp; ${isZh ? '每日归档' : 'Daily Archive'}
                   </div>
                 </td>
                 <td align="right" style="vertical-align:middle;">
@@ -275,38 +291,80 @@ export default async function handler(req, res) {
   const body = await parseBody(req)
   const lang = body?.lang ?? 'zh'
 
-  // read recipients + live news data from Redis
-  let toList   = FALLBACK_TO
-  let liveNews = null
+  // ── Step 1: refresh live data IN-PROCESS before sending (ensures today's news) ──
+  // Runs directly (not via self-fetch) so there is no timeout race — the email
+  // always reflects the data that was just generated and stored in Redis.
+  let briefData    = null
+  let refreshError = null
+  if (process.env.GROQ_API_KEY) {
+    try {
+      console.log('[send-brief] running in-process refresh…')
+      const { data } = await refreshBriefData()
+      if (data?.news?.length > 0) briefData = data
+      console.log(`[send-brief] refresh done — ${data?.news?.length ?? 0} items`)
+    } catch (e) {
+      refreshError = e.message
+      console.warn('[send-brief] refresh failed (will use cached):', e.message)
+      await recordRefreshFailure(e)
+    }
+  }
+
+  // ── Step 2: read recipients + (fallback) cached data from Redis ───────────────
+  let toList = FALLBACK_TO
   try {
     const redis = getRedis()
     if (redis) {
       const [stored, liveData] = await Promise.all([
         redis.get(REDIS_KEY),
-        redis.get('brief:live_data'),
+        briefData ? Promise.resolve(null) : redis.get('brief:live_data'),
       ])
       if (Array.isArray(stored) && stored.length > 0) toList = stored
-      if (liveData?.news?.length > 0) liveNews = liveData.news
+      if (!briefData && liveData?.news?.length > 0) briefData = liveData
     }
   } catch (e) {
     console.warn('[send-brief] Redis read failed:', e.message)
   }
 
   try {
-    const resend = new Resend(apiKey)
-    const html   = buildHTML(lang, liveNews ?? news)
+    const resend  = new Resend(apiKey)
+    const payload = briefData ?? { news, synthesis, weekRange, publishedAt }
+    const html    = buildHTML(lang, payload)
+    const subject = `${lang === 'zh' ? '分析师情报简报' : 'Analyst Intelligence Brief'} — ${briefData ? new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : weekRange}`
 
-    const { data, error } = await resend.emails.send({
-      from:    FROM,
-      to:      toList,
-      subject: `${lang === 'zh' ? '分析师情报简报' : 'Analyst Intelligence Brief'} — ${liveNews ? new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : weekRange}`,
-      html,
-    })
+    // Send individually so each recipient sees only their own address in the To field
+    const results = await Promise.all(
+      toList.map(email =>
+        resend.emails.send({ from: FROM, to: [email], subject, html })
+      )
+    )
 
-    if (error) throw new Error(JSON.stringify(error))
+    const errors = results.filter(r => r.error).map(r => r.error)
+    if (errors.length === toList.length) throw new Error(JSON.stringify(errors[0]))
 
-    console.log('[send-brief] sent →', data?.id)
-    return res.status(200).json({ ok: true, id: data?.id, to: toList, week: weekRange })
+    const ids = results.map(r => r.data?.id).filter(Boolean)
+    console.log(`[send-brief] sent ${ids.length}/${toList.length} →`, ids)
+
+    // Alert admins if the brief went out on STALE data (refresh failed this run)
+    if (refreshError) {
+      try {
+        await resend.emails.send({
+          from:    FROM,
+          to:      FALLBACK_TO,
+          subject: `⚠️ 简报数据刷新失败 — 已发送旧数据 (${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})})`,
+          html:    `<div style="font-family:sans-serif;font-size:14px;color:#111;line-height:1.7;">
+            <p><strong>今天的简报刷新失败</strong>,邮件使用了 Redis 中的旧缓存数据发送。</p>
+            <p><strong>错误信息:</strong></p>
+            <pre style="background:#f4f4f5;padding:10px;border-radius:6px;white-space:pre-wrap;color:#b91c1c;">${refreshError}</pre>
+            <p>常见原因:Groq 限流/额度用尽、RSS 源批量失效、Redis 写入失败。可前往管理后台手动「立即刷新数据」重试。</p>
+          </div>`,
+        })
+        console.log('[send-brief] sent refresh-failure alert to admins')
+      } catch (alertErr) {
+        console.warn('[send-brief] could not send failure alert:', alertErr.message)
+      }
+    }
+
+    return res.status(200).json({ ok: true, sent: ids.length, ids, to: toList, refreshFailed: !!refreshError, week: payload.weekRange ?? weekRange })
   } catch (err) {
     console.error('[send-brief] error:', err.message)
     return res.status(500).json({ error: err.message })

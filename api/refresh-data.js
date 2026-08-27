@@ -6,10 +6,13 @@
 //   UPSTASH_REDIS_REST_URL  — from upstash.com
 //   UPSTASH_REDIS_REST_TOKEN
 // Optional:
-//   GROQ_MODEL              — defaults to llama-3.3-70b-versatile
+//   GROQ_MODEL              — pins a model. Verified against the live model list;
+//                             if it is gone, we auto-pick the best available one.
 
 import Groq        from 'groq-sdk'
 import { Redis }   from '@upstash/redis'
+
+const GROQ_API_BASE = 'https://api.groq.com/openai/v1'
 
 export const REDIS_DATA_KEY   = 'brief:live_data'
 export const REDIS_TS_KEY     = 'brief:live_ts'
@@ -217,6 +220,83 @@ function normaliseItem(item, index) {
   }
 }
 
+// ── Model resolution ──────────────────────────────────────────────────────────
+// Hard-coding a model id caused a silent 11-day outage when Groq retired
+// llama-3.3-70b-versatile. Instead we ask Groq what it currently serves and pick
+// the best general-purpose chat model, so a future retirement self-heals.
+
+// Not general-purpose chat models — audio, safety classifiers, embeddings.
+const NON_CHAT_PATTERNS = [
+  /whisper/i, /\btts\b/i, /guard/i, /embed/i, /moderation/i, /rerank/i,
+]
+
+// Heuristic score, deliberately pattern-based rather than a list of exact ids —
+// it survives version bumps (llama-3.3 → llama-4 → …) without another outage.
+function scoreModel(id) {
+  if (NON_CHAT_PATTERNS.some(p => p.test(id))) return -1
+  let score = 0
+  if (/versatile/i.test(id))                        score += 100  // Groq's general-purpose tag
+  if (/llama/i.test(id))                            score += 40
+  if (/qwen|kimi|deepseek|gpt-oss|mixtral|gemma/i.test(id)) score += 20
+  if (/instant|mini|small|8b|7b/i.test(id))         score -= 20   // fast but weaker
+  if (/preview|alpha|beta/i.test(id))               score -= 30
+  // Reasoning models emit <think> blocks that break strict JSON parsing.
+  if (/\br1\b|reasoning|distill|think/i.test(id))   score -= 90
+  const size = id.match(/(\d+)\s*b\b/i)                           // bigger = better, capped
+  if (size) score += Math.min(Number(size[1]), 200) / 4
+  return score
+}
+
+async function listGroqModels(apiKey) {
+  const r = await fetch(`${GROQ_API_BASE}/models`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal:  AbortSignal.timeout(10000),
+  })
+  if (!r.ok) throw new Error(`Groq /models → HTTP ${r.status}`)
+  const body = await r.json()
+  return (body?.data ?? []).map(m => m.id).filter(Boolean)
+}
+
+// Cached for the lifetime of the warm lambda — one extra HTTP call per cold start.
+let cachedModel = null
+
+export async function resolveModel(apiKey, { force = false } = {}) {
+  if (cachedModel && !force) return cachedModel
+
+  const pinned = process.env.GROQ_MODEL
+  let available
+  try {
+    available = await listGroqModels(apiKey)
+  } catch (e) {
+    // Can't enumerate — fall back to the pin, or let the completion call surface the error.
+    console.warn(`[refresh-data] could not list models (${e.message}); using pin=${pinned ?? 'none'}`)
+    if (pinned) return (cachedModel = pinned)
+    throw new Error(`Cannot determine a Groq model: ${e.message}`)
+  }
+
+  // A pin is honoured only if Groq still serves it.
+  if (pinned && available.includes(pinned)) {
+    console.log(`[refresh-data] using pinned model ${pinned}`)
+    return (cachedModel = pinned)
+  }
+  if (pinned) {
+    console.warn(`[refresh-data] pinned model "${pinned}" is no longer available — auto-selecting`)
+  }
+
+  const ranked = available
+    .map(id => ({ id, score: scoreModel(id) }))
+    .filter(m => m.score >= 0)
+    .sort((a, b) => b.score - a.score)
+
+  if (ranked.length === 0) {
+    throw new Error(`No usable chat model among ${available.length} Groq models`)
+  }
+
+  console.log(`[refresh-data] auto-selected ${ranked[0].id} from ${available.length} models ` +
+              `(runners-up: ${ranked.slice(1, 4).map(m => m.id).join(', ') || 'none'})`)
+  return (cachedModel = ranked[0].id)
+}
+
 // ── Core refresh logic (runs in-process — used by both the HTTP handler and ──
 //    send-brief.js, which calls it directly to avoid a fragile self-fetch) ───
 // Throws on failure; returns the stored data object on success.
@@ -266,7 +346,7 @@ export async function refreshBriefData() {
     .join('\n\n')
 
   // 2. Single Groq call — one output item per input headline
-  const model = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile'
+  let model = await resolveModel(apiKey)
   console.log(`[refresh-data] sending ${N} headlines to ${model}`)
 
   const prompt = `You are a bilingual analyst news editor. Today is ${today}.
@@ -320,13 +400,29 @@ STRICT RULES — apply to ALL ${N} items:
 
   const groq = new Groq({ apiKey })
 
-  const completion = await groq.chat.completions.create({
-    model,
-    messages: [{ role: 'user', content: prompt }],
+  const callModel = (m) => groq.chat.completions.create({
+    model:           m,
+    messages:        [{ role: 'user', content: prompt }],
     max_tokens:      8000,
     temperature:     0.1,
     response_format: { type: 'json_object' },
   })
+
+  let completion
+  try {
+    completion = await callModel(model)
+  } catch (e) {
+    // The model vanished between resolution and use (or the cache went stale on a
+    // warm lambda). Re-resolve against the live list once, then retry.
+    const gone = e?.status === 404 || /model_not_found|does not exist/i.test(e?.message ?? '')
+    if (!gone) throw e
+    console.warn(`[refresh-data] model "${model}" rejected (${e.message}) — re-resolving`)
+    const retryModel = await resolveModel(apiKey, { force: true })
+    if (retryModel === model) throw e   // nothing better to try
+    model = retryModel
+    console.log(`[refresh-data] retrying with ${model}`)
+    completion = await callModel(model)
+  }
 
   const parsed  = JSON.parse(completion.choices[0].message.content)
   const rawNews = Array.isArray(parsed.news) ? parsed.news : []

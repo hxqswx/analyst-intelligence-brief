@@ -1,8 +1,19 @@
 {
+  "functions": {
+    "api/refresh-data.js": {
+      "maxDuration": 60
+    },
+    "api/send-brief.js": {
+      "maxDuration": 60
+    },
+    "api/brief-data.js": {
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/send-brief",
-      "schedule": "0 6 * * *"
+      "schedule": "0 14 * * *"
     }
   ]
 }

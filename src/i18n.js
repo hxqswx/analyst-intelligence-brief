@@ -32,6 +32,11 @@ export const i18n = {
     justUpdated:       'Just updated',
     updatedAgo:        (n, unit) => `Updated ${n}${unit} ago`,
     refreshing:        'Refreshing…',
+    // health banner
+    staleTitle:        'Data may be out of date',
+    staleAgo:          (h) => `Last successful update ${h}h ago — a refresh may have failed.`,
+    staleStatic:       'Showing fallback data — live source is unavailable.',
+    staleRetry:        'Retry now',
     // admin
     adminPanel:        'Admin Panel',
     adminLogin:        'Sign in with Google to access admin',
@@ -75,6 +80,11 @@ export const i18n = {
     justUpdated:       '刚刚更新',
     updatedAgo:        (n, unit) => `${n}${unit}前更新`,
     refreshing:        '更新中…',
+    // health banner
+    staleTitle:        '数据可能未更新',
+    staleAgo:          (h) => `上次成功更新在 ${h} 小时前 —— 刷新可能失败了。`,
+    staleStatic:       '正在显示兜底数据 —— 实时数据源不可用。',
+    staleRetry:        '立即重试',
     // admin
     adminPanel:        '管理后台',
     adminLogin:        '使用 Google 账号登录以访问管理后台',

@@ -6,10 +6,10 @@ export default {
     extend: {
       colors: {
         surface: {
-          base:  '#0d1117',
-          card:  '#161b26',
-          raise: '#1c2333',
-          line:  '#21262d',
+          base:  'rgb(var(--c-surface-base) / <alpha-value>)',
+          card:  'rgb(var(--c-surface-card) / <alpha-value>)',
+          raise: 'rgb(var(--c-surface-raise) / <alpha-value>)',
+          line:  'rgb(var(--c-surface-line) / <alpha-value>)',
         },
         ai: {
           DEFAULT: '#60a5fa',

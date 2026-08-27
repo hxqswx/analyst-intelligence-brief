@@ -2,29 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Surface colour tokens (RGB channels — supports opacity modifiers) ─────── */
+:root {
+  --c-surface-base:  13  17  23;    /* #0d1117 */
+  --c-surface-card:  22  27  38;    /* #161b26 */
+  --c-surface-raise: 30  38  55;    /* slightly brighter */
+  --c-surface-line:  48  58  74;    /* #303a4a — noticeably brighter border for card separation */
+}
+
 @layer base {
   * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
 
   body {
-    background-color: #0d1117;
+    background-color: rgb(var(--c-surface-base));
     @apply text-slate-200 font-sans antialiased;
     min-height: 100dvh;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    transition: background-color 0.25s, color 0.25s;
   }
 
   h1, h2, h3, h4 { @apply font-semibold text-slate-100 leading-snug; }
   p { line-height: 1.75; }
 
   ::-webkit-scrollbar       { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: #0d1117; }
+  ::-webkit-scrollbar-track { background: rgb(var(--c-surface-base)); }
   ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 9999px; }
   ::-webkit-scrollbar-thumb:hover { background: #484f58; }
 }
 
 @layer components {
-  /* category pills — hardcoded to avoid @apply resolution issues */
+  /* category pills */
   .pill-ai {
     background-color: rgba(96,165,250,0.14);
     color: #60a5fa;
@@ -49,10 +58,10 @@
   /* card */
   .card {
     border-radius: 0.75rem;
-    border: 1px solid #21262d;
-    background-color: #161b26;
+    border: 1px solid rgb(var(--c-surface-line));
+    background-color: rgb(var(--c-surface-card));
     box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.2);
-    transition: box-shadow 0.3s, transform 0.3s;
+    transition: box-shadow 0.3s, transform 0.3s, background-color 0.25s, border-color 0.25s;
   }
   .card:hover {
     box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 8px 32px rgba(0,0,0,0.3);
@@ -81,3 +90,65 @@
   .safe-top    { padding-top: env(safe-area-inset-top); }
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 }
+
+/* ── Light mode ──────────────────────────────────────────────────────────────
+   Applied via <html class="light">. Overrides surface tokens + flips the
+   slate text scale (Tailwind slate-100 = near-white, invisible on white bg).
+   ─────────────────────────────────────────────────────────────────────────── */
+html.light {
+  --c-surface-base:  241 245 249;  /* #f1f5f9 */
+  --c-surface-card:  255 255 255;  /* #ffffff */
+  --c-surface-raise: 248 250 252;  /* #f8fafc */
+  --c-surface-line:  226 232 240;  /* #e2e8f0 */
+  color-scheme: light;
+}
+
+html.light body  { color: #0f172a; background-color: #f1f5f9; }
+
+html.light h1, html.light h2,
+html.light h3,   html.light h4  { color: #0f172a; }
+
+/* Flip slate text — Tailwind slate-100 is near-white, invisible on white bg.
+   Map each dark-mode shade to an appropriate dark equivalent. */
+html.light .text-slate-100 { color: #0f172a; }   /* headings */
+html.light .text-slate-200 { color: #1e293b; }   /* strong body */
+html.light .text-slate-300 { color: #334155; }   /* body text, summaries */
+html.light .text-slate-400 { color: #475569; }   /* secondary labels, icons */
+html.light .text-slate-500 { color: #64748b; }   /* muted / tertiary */
+html.light .text-slate-600 { color: #94a3b8; }   /* very muted */
+html.light .text-slate-700 { color: #94a3b8; }
+
+/* Cards */
+html.light .card {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+}
+html.light .card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 8px 32px rgba(0,0,0,0.06);
+}
+
+/* Expanded panels — keep the tint, slightly stronger border for contrast */
+html.light .panel-ai   { background-color: rgba(96,165,250,0.08);  border-color: rgba(96,165,250,0.3); }
+html.light .panel-tech { background-color: rgba(192,132,252,0.08); border-color: rgba(192,132,252,0.3); }
+html.light .panel-fin  { background-color: rgba(52,211,153,0.08);  border-color: rgba(52,211,153,0.3); }
+
+/* Impact-low: the slate-400 text is barely visible on white, darken slightly */
+html.light .impact-low { color: #64748b; }
+
+/* Flip white-opacity overlays to black-opacity (dark BG → light BG) */
+html.light .bg-white\/6  { background-color: rgb(0 0 0 / 0.04); }
+html.light .bg-white\/8  { background-color: rgb(0 0 0 / 0.05); }
+html.light .bg-white\/12 { background-color: rgb(0 0 0 / 0.07); }
+html.light .bg-white\/15 { background-color: rgb(0 0 0 / 0.09); }
+html.light .border-white\/8  { border-color: rgb(0 0 0 / 0.06); }
+html.light .border-white\/10 { border-color: rgb(0 0 0 / 0.08); }
+html.light .border-white\/20 { border-color: rgb(0 0 0 / 0.12); }
+
+/* Scrollbar */
+html.light ::-webkit-scrollbar-track { background: #f1f5f9; }
+html.light ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+html.light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* hover:border-slate-600 in light should be a medium gray, not near-white */
+html.light .hover\:border-slate-600:hover { border-color: #94a3b8; }
