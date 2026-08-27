@@ -14,6 +14,22 @@ import { Redis }   from '@upstash/redis'
 
 const GROQ_API_BASE = 'https://api.groq.com/openai/v1'
 
+// Groq's free tier bills prompt + max_tokens against a tokens-per-minute cap, so a
+// single call for 20 rich bilingual items does not fit. Generate in batches instead.
+const TPM_BUDGET        = Number(process.env.GROQ_TPM) || 8000
+const BATCH_SIZE        = Number(process.env.GROQ_BATCH_SIZE) || 5
+const BATCH_OUTPUT_EST  = BATCH_SIZE * 620   // ~620 output tokens per bilingual item
+const TOKEN_MARGIN      = 400                // headroom for the model's own accounting
+// Vercel kills the function at maxDuration (60s); stop cleanly before that so
+// whatever has been generated still gets stored.
+const DEADLINE_MS       = Number(process.env.REFRESH_DEADLINE_MS) || 50_000
+const TARGET_ITEMS      = Number(process.env.BRIEF_ITEMS) || 20
+
+// Rough but adequate: ~3.5 chars/token for mixed English + Chinese prompts.
+function estimateTokens(text) {
+  return Math.ceil(text.length / 3.5)
+}
+
 export const REDIS_DATA_KEY   = 'brief:live_data'
 export const REDIS_TS_KEY     = 'brief:live_ts'
 export const REDIS_HEALTH_KEY = 'brief:health'   // { ok, at, items?, error? } — last refresh outcome
@@ -334,22 +350,51 @@ export async function refreshBriefData() {
   const WANT_OVERSEAS = 10, WANT_CHINA = 10
   const sliceOverseas = roundRobin(overseasFeeds.map(f => f.items), WANT_OVERSEAS + Math.max(0, WANT_CHINA - chinaTotal))
   const sliceChina    = roundRobin(chinaFeeds.map(f => f.items),    WANT_CHINA    + Math.max(0, WANT_OVERSEAS - sliceOverseas.length))
-  const targets = [...sliceOverseas, ...sliceChina]
-  const N       = targets.length
+  let targets = [...sliceOverseas, ...sliceChina]
 
+  // Each run can only afford a few items, so generate ones the pool does not have
+  // yet — otherwise every run would re-generate the same top headlines and the
+  // pool could never fill up.
+  const redisEarly = getRedis()
+  let prevNews = []
+  if (redisEarly) {
+    try {
+      const prev = await redisEarly.get(REDIS_DATA_KEY)
+      prevNews = Array.isArray(prev?.news) ? prev.news : []
+    } catch (e) {
+      console.warn('[refresh-data] could not read previous pool:', e.message)
+    }
+  }
+  if (prevNews.length > 0) {
+    const covered = new Set(prevNews.map(it => it?.sources?.[0]?.url).filter(Boolean))
+    const unseen  = targets.filter(t => t.link && !covered.has(t.link))
+    if (unseen.length > 0) {
+      console.log(`[refresh-data] ${unseen.length}/${targets.length} headlines are new to the pool`)
+      targets = unseen
+    } else {
+      console.log('[refresh-data] no new headlines — regenerating the freshest')
+    }
+  }
+
+  const N = targets.length
+
+  // 2. Generate. Groq's free tier caps tokens-per-minute, and a request's cost is
+  //    prompt + max_tokens. 20 rich bilingual items exceed that in one call, so we
+  //    split into sequential batches sized to fit the budget.
+  let model = await resolveModel(apiKey)
+  console.log(`[refresh-data] sending ${N} headlines to ${model}`)
+
+  const buildPrompt = (batch, offset) => {
+  const n = batch.length
   // Tag each headline with [CN] or [INTL] so the model has a reliable region hint
-  const headlines = targets
+  const headlines = batch
     .map((it, i) => {
       const tag = isChineseDomain(it.link || '') ? '[CN]' : '[INTL]'
       return `${i + 1}. ${tag} ${it.title.slice(0, 100)}\n   ${(it.desc || '').slice(0, 160)}\n   URL: ${it.link || 'n/a'}`
     })
     .join('\n\n')
-
-  // 2. Single Groq call — one output item per input headline
-  let model = await resolveModel(apiKey)
-  console.log(`[refresh-data] sending ${N} headlines to ${model}`)
-
-  const prompt = `You are a bilingual analyst news editor. Today is ${today}.
+  const N = n
+  return `You are a bilingual analyst news editor. Today is ${today}.
 
 I have ${N} news headlines. Convert each headline into exactly one structured news item.
 You MUST output exactly ${N} items — one per headline, in the same order.
@@ -397,43 +442,116 @@ STRICT RULES — apply to ALL ${N} items:
 9. summary: 3-5 sentences, 80-120 English words / 100-200 Chinese characters — cover background, what happened, and key impact
 10. whyItMatters: 3-5 sentences of depth analysis, 80-120 English words / 100-200 Chinese characters — explain strategic/market/geopolitical significance
 11. country: the PRIMARY country/region this story is ABOUT — exactly one of: "US" | "UK" | "CN" | "HK" | "EU" | "JP" | "KR" | "IN" | "SG" | "AU" | "DE" | "FR" | "Global"`
+  }
 
   const groq = new Groq({ apiKey })
 
-  const callModel = (m) => groq.chat.completions.create({
+  const callModel = (m, prompt, maxTokens) => groq.chat.completions.create({
     model:           m,
     messages:        [{ role: 'user', content: prompt }],
-    max_tokens:      8000,
+    max_tokens:      maxTokens,
     temperature:     0.1,
     response_format: { type: 'json_object' },
   })
 
-  let completion
-  try {
-    completion = await callModel(model)
-  } catch (e) {
-    // The model vanished between resolution and use (or the cache went stale on a
-    // warm lambda). Re-resolve against the live list once, then retry.
-    const gone = e?.status === 404 || /model_not_found|does not exist/i.test(e?.message ?? '')
-    if (!gone) throw e
-    console.warn(`[refresh-data] model "${model}" rejected (${e.message}) — re-resolving`)
-    const retryModel = await resolveModel(apiKey, { force: true })
-    if (retryModel === model) throw e   // nothing better to try
-    model = retryModel
-    console.log(`[refresh-data] retrying with ${model}`)
-    completion = await callModel(model)
+  // One batch → parsed items. Retries once on a retired model, and shrinks the
+  // token ask when the org's TPM budget rejects the request.
+  async function runBatch(batch, offset, budget) {
+    const prompt = buildPrompt(batch, offset)
+    let maxTokens = Math.min(8000, Math.max(1200, budget - estimateTokens(prompt) - TOKEN_MARGIN))
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const completion = await callModel(model, prompt, maxTokens)
+        const parsed = JSON.parse(completion.choices[0].message.content)
+        return {
+          news:      Array.isArray(parsed.news) ? parsed.news : [],
+          synthesis: parsed.synthesis,
+        }
+      } catch (e) {
+        const msg = e?.message ?? ''
+
+        // Model retired between resolution and use — re-resolve and retry.
+        if (e?.status === 404 || /model_not_found|does not exist/i.test(msg)) {
+          const next = await resolveModel(apiKey, { force: true })
+          if (next === model) throw e
+          console.warn(`[refresh-data] model "${model}" retired — switching to ${next}`)
+          model = next
+          continue
+        }
+
+        // Over the tokens-per-minute budget — obey the limit the error reports.
+        if (e?.status === 413 || /rate_limit_exceeded|too large/i.test(msg)) {
+          const limit = Number(msg.match(/Limit\s+(\d+)/i)?.[1])
+          const room  = (limit || budget) - estimateTokens(prompt) - TOKEN_MARGIN
+          if (room < 800 || attempt === 2) {
+            throw new Error(`Token budget too small for ${batch.length} items: ${msg.slice(0, 160)}`)
+          }
+          console.warn(`[refresh-data] TPM rejected (limit=${limit || '?'}) — retrying with max_tokens=${room}`)
+          maxTokens = room
+          continue
+        }
+
+        throw e
+      }
+    }
+    throw new Error('Batch failed after retries')
   }
 
-  const parsed  = JSON.parse(completion.choices[0].message.content)
-  const rawNews = Array.isArray(parsed.news) ? parsed.news : []
+  const rawNews  = []
+  let synthesis  = null
+  let spent      = 0                      // tokens charged in the current TPM window
+  let windowAt   = Date.now()
+  const deadline = Date.now() + DEADLINE_MS
+
+  for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+    const batch = targets.slice(i, i + BATCH_SIZE)
+
+    // Reset the rolling window once a minute has passed.
+    if (Date.now() - windowAt >= 60_000) { spent = 0; windowAt = Date.now() }
+
+    const cost = estimateTokens(buildPrompt(batch, i)) + BATCH_OUTPUT_EST + TOKEN_MARGIN
+    if (spent + cost > TPM_BUDGET) {
+      // Would breach the per-minute cap; wait out the window — but only if there is
+      // enough wall clock left, since Vercel kills the function at maxDuration.
+      const waitMs = 60_000 - (Date.now() - windowAt) + 1_000
+      if (Date.now() + waitMs > deadline) {
+        console.log(`[refresh-data] stopping at ${rawNews.length} items — TPM window needs ${Math.round(waitMs / 1000)}s, not enough time left`)
+        break
+      }
+      console.log(`[refresh-data] TPM window full (${spent}/${TPM_BUDGET}) — waiting ${Math.round(waitMs / 1000)}s`)
+      await new Promise(r => setTimeout(r, waitMs))
+      spent = 0; windowAt = Date.now()
+    }
+
+    if (Date.now() > deadline) {
+      console.log(`[refresh-data] deadline reached — stopping at ${rawNews.length} items`)
+      break
+    }
+
+    try {
+      const out = await runBatch(batch, i, TPM_BUDGET - spent)
+      // Pair each item with its own source here — a failed batch would otherwise
+      // shift indices and graft the wrong URL/country onto later items.
+      out.news.forEach((item, j) => rawNews.push({ item, src: batch[j] }))
+      synthesis ??= out.synthesis
+      spent += cost
+      console.log(`[refresh-data] batch ${i / BATCH_SIZE + 1}: ${out.news.length}/${batch.length} items (spent ~${spent}/${TPM_BUDGET})`)
+    } catch (e) {
+      // Partial results still beat serving days-old data.
+      console.warn(`[refresh-data] batch at ${i} failed: ${e.message}`)
+      spent += cost
+      if (rawNews.length === 0 && i + BATCH_SIZE >= targets.length) throw e
+    }
+  }
 
   if (rawNews.length === 0) throw new Error('Model returned an empty news array')
 
+  const parsed = { synthesis }
   console.log(`[refresh-data] model returned ${rawNews.length} items (expected ${N}) via ${model}`)
 
   // Inject original RSS URLs + country — model may deviate; URL-based detection is ground-truth.
-  rawNews.forEach((item, i) => {
-    const src = targets[i]
+  rawNews.forEach(({ item, src }) => {
     if (!src) return
     const articleUrl = src.link    || ''
     const feedUrl    = src.feedUrl || ''
@@ -457,26 +575,47 @@ STRICT RULES — apply to ALL ${N} items:
     if (feedCountry) item.country = feedCountry
   })
 
-  const chinaCount    = rawNews.filter(it => it.region === 'china' || isChineseDomain(it.sources?.[0]?.url ?? '')).length
-  const overseasCount = rawNews.length - chinaCount
+  const items         = rawNews.map(({ item }) => item)
+  const chinaCount    = items.filter(it => it.region === 'china' || isChineseDomain(it.sources?.[0]?.url ?? '')).length
+  const overseasCount = items.length - chinaCount
   console.log(`[refresh-data] region split — china=${chinaCount} overseas=${overseasCount}`)
+
+  const redis = getRedis()
+
+  // The free-tier TPM cap means one run generates only a handful of items. Rather
+  // than shrinking the brief to that batch, merge the fresh items over the previous
+  // pool: newest first, deduped by article URL, capped at TARGET_ITEMS. Successive
+  // refreshes roll the pool over while it stays full.
+  let merged = items.map(normaliseItem)
+  {
+    const seen = new Set(merged.map(it => it.sources?.[0]?.url).filter(Boolean))
+    for (const old of prevNews) {
+      if (merged.length >= TARGET_ITEMS) break
+      const url = old?.sources?.[0]?.url
+      if (url && seen.has(url)) continue
+      if (url) seen.add(url)
+      merged.push(old)
+    }
+    console.log(`[refresh-data] merged ${items.length} fresh + ${merged.length - items.length} carried over`)
+  }
+  // Re-rank so id/rank stay sequential after the merge.
+  merged = merged.map((it, i) => ({ ...it, id: i + 1, rank: i + 1 }))
 
   // Normalise every field to prevent frontend display bugs
   const data = {
-    news:        rawNews.map(normaliseItem),
+    news:        merged,
     synthesis:   parsed.synthesis   ?? { topic: { zh: '科技趋势', en: 'Tech Trends' }, summary: { zh: '本周科技金融动态。', en: 'This week in tech and finance.' }, debateScore: 70, sectors: ['Technology'] },
     weekRange:   parsed.weekRange   ?? weekRange,
     publishedAt: parsed.publishedAt ?? pubAt,
   }
 
   // 3. Store in Redis
-  const redis = getRedis()
   if (redis) {
     const now = Date.now()
     await redis.set(REDIS_DATA_KEY,   data)
     await redis.set(REDIS_TS_KEY,     now)
-    await redis.set(REDIS_HEALTH_KEY, { ok: true, at: now, items: data.news.length })
-    console.log(`[refresh-data] stored ${data.news.length} items in Redis`)
+    await redis.set(REDIS_HEALTH_KEY, { ok: true, at: now, items: data.news.length, fresh: items.length })
+    console.log(`[refresh-data] stored ${data.news.length} items in Redis (${items.length} fresh)`)
   } else {
     console.warn('[refresh-data] Redis not configured')
   }
