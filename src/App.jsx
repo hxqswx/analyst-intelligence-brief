@@ -670,24 +670,24 @@ function Header({ lang, setLang, onAdminOpen, theme, setTheme }) {
 const STALE_THRESHOLD_H = 26   // daily refresh; >26h means a cycle was missed
 
 function StaleBanner() {
-  const { lang, t } = useLang()
+  const { t } = useLang()
   const { source, cachedAt, health } = useBrief()
 
-  if (source === 'loading' || source === 'live') {
-    // 'live' but old? (e.g. cron missed, cache still <1h logic returned live) — check age
-    if (source === 'live') {
-      const ageH = cachedAt ? Math.floor((Date.now() - cachedAt) / 3.6e6) : 0
-      if (ageH < STALE_THRESHOLD_H && health?.ok !== false) return null
-    } else {
-      return null
-    }
-  }
+  if (source === 'loading') return null
 
   const ageH = cachedAt ? Math.floor((Date.now() - cachedAt) / 3.6e6) : null
-  const message =
-    source === 'static'                         ? t.staleStatic
-    : ageH != null                              ? t.staleAgo(ageH)
-    : (health?.error ? t.staleAgo(0) : t.staleStatic)
+
+  // Warn about the DATA, not about a single refresh attempt. A refresh can fail
+  // (rate limit, a flaky feed) while the cached brief is still current — telling
+  // the reader it "may be out of date" alongside "updated 0h ago" is just wrong.
+  // Only a failure that leaves the data actually old is worth surfacing.
+  const isStatic = source === 'static'
+  const isOld    = ageH == null || ageH >= STALE_THRESHOLD_H
+  if (!isStatic && !isOld) return null
+
+  const message = isStatic       ? t.staleStatic
+                : ageH != null   ? t.staleAgo(ageH)
+                : t.staleStatic
 
   return (
     <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-amber-500/30
@@ -696,6 +696,9 @@ function StaleBanner() {
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-amber-300">{t.staleTitle}</div>
         <div className="text-xs text-amber-200/80 leading-relaxed mt-0.5">{message}</div>
+        {health?.ok === false && health?.error && (
+          <div className="text-2xs text-amber-200/50 mt-1 truncate">{health.error}</div>
+        )}
       </div>
       <button
         onClick={() => window.location.reload()}
