@@ -24,8 +24,10 @@ const TOKEN_MARGIN      = 400                // headroom for the model's own acc
 // whatever has been generated still gets stored.
 const DEADLINE_MS       = Number(process.env.REFRESH_DEADLINE_MS) || 50_000
 const TARGET_ITEMS      = Number(process.env.BRIEF_ITEMS) || 20
-// Share of the brief reserved for China coverage (0.65 = 13 of 20).
-const CHINA_SHARE       = Number(process.env.BRIEF_CHINA_SHARE) || 0.65
+// Share of TARGETS drawn from China feeds. The published share ends up lower,
+// because items are classified by subject afterwards and a Chinese outlet's world
+// coverage correctly lands in "overseas" — 0.8 here lands near 65% published.
+const CHINA_SHARE       = Number(process.env.BRIEF_CHINA_SHARE) || 0.8
 const FEED_TIMEOUT_MS   = Number(process.env.FEED_TIMEOUT_MS) || 8000  // several CN feeds need >5s
 const FEED_ITEM_CAP     = Number(process.env.FEED_ITEM_CAP) || 3       // per feed, per run
 
@@ -222,6 +224,22 @@ function isChineseDomain(url = '') {
   return CHINA_DOMAINS.some(d => url.includes(d))
 }
 
+// ── China-subject detection (headline level) ───────────────────────────
+// Chinese outlets publish plenty of world news, so picking targets by publisher
+// fills the China quota with stories that are then correctly classified overseas.
+// Bias selection toward headlines that actually look like China stories.
+const CHINA_SIGNALS = [
+  /中国|中方|国内|北京|上海|深圳|广州|杭州|香港|台湾|人民币|A股|央行|国务院|工信部/,
+  /华为|阿里|腾讯|百度|字节|小米|比亚迪|宁德|京东|美团|中芯|联想|微信|小红书|拼多多|蛎蚁|快手|理想汽车|蒚来|小鹏/,
+  /china|chinese|beijing|shanghai|shenzhen|hong ?kong|taiwan|yuan|renminbi|pboc/i,
+  /huawei|alibaba|tencent|baidu|bytedance|xiaomi|byd|catl|jd\.com|meituan|smic|lenovo|wechat|deepseek|nio|xpeng/i,
+]
+
+function looksAboutChina(item) {
+  const text = `${item.title ?? ''} ${item.desc ?? ''}`
+  return CHINA_SIGNALS.some(re => re.test(text))
+}
+
 // ── Feed → country mapping (source origin, not story subject) ─────────────────
 const FEED_COUNTRY_MAP = [
   ['feeds.bbci.co.uk',        'UK'],
@@ -275,7 +293,13 @@ function getFeedCountry(url = '') {
 // ── Field normalisation ────────────────────────────────────────────────────────
 const VALID_CATS      = new Set(['AI', 'Technology', 'Finance'])
 const VALID_IMPACTS   = new Set(['High', 'Medium', 'Low'])
-const VALID_COUNTRIES = new Set(['US', 'UK', 'CN', 'HK', 'EU', 'JP', 'KR', 'IN', 'SG', 'AU', 'DE', 'FR', 'Global'])
+const VALID_COUNTRIES = new Set([
+  'US', 'UK', 'CN', 'HK', 'TW', 'EU', 'JP', 'KR', 'IN', 'SG', 'AU', 'DE', 'FR',
+  'CA', 'BR', 'RU', 'ZA', 'IL', 'SA', 'AE', 'TH', 'VN', 'ID', 'MY', 'PH', 'NZ',
+  'CH', 'NL', 'SE', 'ES', 'IT', 'UA', 'TR', 'MX', 'NG', 'EG', 'Global',
+])
+// A brief item counts as China coverage when the story is ABOUT these.
+const CHINA_COUNTRIES = new Set(['CN', 'HK'])
 
 function normaliseItem(item, index) {
   // Priority: URL of source > model-inferred region
@@ -283,7 +307,9 @@ function normaliseItem(item, index) {
   const urlSaysChina   = isChineseDomain(sourceUrl)
   const modelSaysChina = typeof item.region === 'string' &&
                          item.region.toLowerCase().trim() === 'china'
-  const region   = (urlSaysChina || modelSaysChina) ? 'china' : 'overseas'
+  // "China news" means the story is ABOUT China, not merely published by a Chinese
+  // outlet — Global Times and CGTN both carry plenty of unrelated world coverage.
+  const region   = (modelSaysChina || CHINA_COUNTRIES.has(item.country)) ? 'china' : 'overseas'
   const category = VALID_CATS.has(item.category)    ? item.category : 'Technology'
   const impact   = VALID_IMPACTS.has(item.impact)   ? item.impact   : 'Medium'
   const country  = VALID_COUNTRIES.has(item.country) ? item.country : 'Global'
@@ -435,7 +461,20 @@ export async function refreshBriefData() {
   const WANT_OVERSEAS = TARGET_ITEMS - WANT_CHINA
   // China first: a run only affords a few items, and whichever slice leads gets
   // generated. Leading with China is what actually raises its share of the brief.
-  const sliceChina    = roundRobin(chinaFeeds.map(f => f.items),    WANT_CHINA    + Math.max(0, WANT_OVERSEAS - overseasTotal))
+  // Spend the China quota on headlines that survive subject classification. Ranking
+  // within each feed is not enough — a feed whose top items are world news would
+  // still consume the quota — so exhaust China-subject headlines across ALL China
+  // feeds first, and only then fall back to the remainder.
+  const wantChina    = WANT_CHINA + Math.max(0, WANT_OVERSEAS - overseasTotal)
+  const chinaAbout   = chinaFeeds.map(f => f.items.filter(looksAboutChina))
+  const chinaRest    = chinaFeeds.map(f => f.items.filter(i => !looksAboutChina(i)))
+  const aboutCount   = chinaAbout.reduce((n, arr) => n + arr.length, 0)
+  console.log(`[refresh-data] ${aboutCount} of ${chinaTotal} China-feed headlines look China-subject`)
+
+  const chinaPrimary = roundRobin(chinaAbout, wantChina)
+  const sliceChina   = chinaPrimary.length >= wantChina
+    ? chinaPrimary
+    : [...chinaPrimary, ...roundRobin(chinaRest, wantChina - chinaPrimary.length)]
   const sliceOverseas = roundRobin(overseasFeeds.map(f => f.items), WANT_OVERSEAS + Math.max(0, WANT_CHINA - sliceChina.length))
   let targets = interleave(sliceChina, sliceOverseas, CHINA_SHARE)
 
@@ -475,7 +514,7 @@ export async function refreshBriefData() {
   // Tag each headline with [CN] or [INTL] so the model has a reliable region hint
   const headlines = batch
     .map((it, i) => {
-      const tag = isChineseDomain(it.link || '') ? '[CN]' : '[INTL]'
+      const tag = (it.feedRegion === 'china' || isChineseDomain(it.link || '')) ? '[src:CN]' : '[src:INTL]'
       return `${i + 1}. ${tag} ${it.title.slice(0, 100)}\n   ${(it.desc || '').slice(0, 160)}\n   URL: ${it.link || 'n/a'}`
     })
     .join('\n\n')
@@ -518,7 +557,7 @@ OUTPUT FORMAT — return this exact JSON structure:
 
 STRICT RULES — apply to ALL ${N} items:
 1. Produce EXACTLY ${N} items in "news" — one per headline, same order
-2. region: headlines tagged [CN] → MUST use "china". Headlines tagged [INTL] → use "overseas" UNLESS the story is primarily about China's economy, government policy, or a Chinese company (Alibaba/Tencent/Baidu/Huawei/ByteDance/Xiaomi/BYD/CATL/JD/Meituan/SMIC/Lenovo/WeChat/Xiaohongshu/36Kr)
+2. region: judge by WHAT THE STORY IS ABOUT, never by who published it. Use "china" only if the story is primarily about mainland China, Hong Kong, Macau or Taiwan — their economy, policy, society, technology, or a Chinese company (Alibaba/Tencent/Baidu/Huawei/ByteDance/Xiaomi/BYD/CATL/JD/Meituan/SMIC/Lenovo/WeChat/Xiaohongshu/36Kr/DeepSeek). Otherwise "overseas". The [src:CN] / [src:INTL] tag tells you which outlet published it and is CONTEXT ONLY — a Chinese outlet reporting on Africa, the US or Europe is "overseas"
 3. category: EXACTLY one of "AI" (models/LLM/agents) | "Technology" (hardware/chips/software/cyber) | "Finance" (markets/crypto/macro/VC)
 4. impact: EXACTLY one of "High" | "Medium" | "Low"
 5. tags: exactly 2 short English keywords
@@ -527,7 +566,7 @@ STRICT RULES — apply to ALL ${N} items:
 8. title: concise, ≤ 15 words per language
 9. summary: 3-5 sentences, 80-120 English words / 100-200 Chinese characters — cover background, what happened, and key impact
 10. whyItMatters: 3-5 sentences of depth analysis, 80-120 English words / 100-200 Chinese characters — explain strategic/market/geopolitical significance
-11. country: the PRIMARY country/region this story is ABOUT — exactly one of: "US" | "UK" | "CN" | "HK" | "EU" | "JP" | "KR" | "IN" | "SG" | "AU" | "DE" | "FR" | "Global"`
+11. country: the PRIMARY country/region the story is ABOUT (not the publisher's country) — one of: "US" | "UK" | "CN" | "HK" | "TW" | "EU" | "JP" | "KR" | "IN" | "SG" | "AU" | "DE" | "FR" | "CA" | "BR" | "RU" | "ZA" | "IL" | "SA" | "AE" | "TH" | "VN" | "ID" | "MY" | "PH" | "NZ" | "CH" | "NL" | "SE" | "ES" | "IT" | "UA" | "TR" | "MX" | "NG" | "EG" | "Global". Use "Global" only when genuinely multinational`
   }
 
   const groq = new Groq({ apiKey })
@@ -660,16 +699,18 @@ STRICT RULES — apply to ALL ${N} items:
       }
     }
 
-    // Override region — the feed's own declaration and the publisher domain both
-    // beat model inference. Aggregator feeds are China-scoped by their query.
-    if (src.feedRegion === 'china' ||
-        isChineseDomain(originUrl) || isChineseDomain(articleUrl) || isChineseDomain(feedUrl)) {
-      item.region = 'china'
+    // Country/region describe the story's SUBJECT, so the model's judgement leads
+    // here; the publisher only fills in when the model gave nothing usable. Taking
+    // the publisher's country outright is what filed a Global Times piece about
+    // South Africa under "China news".
+    if (!VALID_COUNTRIES.has(item.country)) {
+      const feedCountry = getFeedCountry(originUrl) || getFeedCountry(feedUrl) || getFeedCountry(articleUrl)
+      if (feedCountry) item.country = feedCountry
     }
 
-    // Override country from the publisher, then the feed (beats model inference)
-    const feedCountry = getFeedCountry(originUrl) || getFeedCountry(feedUrl) || getFeedCountry(articleUrl)
-    if (feedCountry) item.country = feedCountry
+    // Keep region consistent with the subject country.
+    if (CHINA_COUNTRIES.has(item.country)) item.region = 'china'
+    else if (item.region === 'china' && VALID_COUNTRIES.has(item.country)) item.region = 'overseas'
   })
 
   const items         = rawNews.map(({ item }) => item)

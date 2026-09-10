@@ -24,7 +24,12 @@ function getRedis() {
 const COUNTRY_FLAGS = {
   US: '🇺🇸', UK: '🇬🇧', CN: '🇨🇳', HK: '🇭🇰', EU: '🇪🇺',
   JP: '🇯🇵', KR: '🇰🇷', IN: '🇮🇳', SG: '🇸🇬', AU: '🇦🇺',
-  DE: '🇩🇪', FR: '🇫🇷', Global: '🌐',
+  DE: '🇩🇪', FR: '🇫🇷', TW: '🇹🇼', CA: '🇨🇦', BR: '🇧🇷',
+  RU: '🇷🇺', ZA: '🇿🇦', IL: '🇮🇱', SA: '🇸🇦', AE: '🇦🇪',
+  TH: '🇹🇭', VN: '🇻🇳', ID: '🇮🇩', MY: '🇲🇾', PH: '🇵🇭',
+  NZ: '🇳🇿', CH: '🇨🇭', NL: '🇳🇱', SE: '🇸🇪', ES: '🇪🇸',
+  IT: '🇮🇹', UA: '🇺🇦', TR: '🇹🇷', MX: '🇲🇽', NG: '🇳🇬',
+  EG: '🇪🇬', Global: '🌐',
 }
 const countryFlag = (c) => COUNTRY_FLAGS[c] ?? '🌐'
 
