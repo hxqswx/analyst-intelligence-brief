@@ -24,6 +24,10 @@ const TOKEN_MARGIN      = 400                // headroom for the model's own acc
 // whatever has been generated still gets stored.
 const DEADLINE_MS       = Number(process.env.REFRESH_DEADLINE_MS) || 50_000
 const TARGET_ITEMS      = Number(process.env.BRIEF_ITEMS) || 20
+// Share of the brief reserved for China coverage (0.65 = 13 of 20).
+const CHINA_SHARE       = Number(process.env.BRIEF_CHINA_SHARE) || 0.65
+const FEED_TIMEOUT_MS   = Number(process.env.FEED_TIMEOUT_MS) || 8000  // several CN feeds need >5s
+const FEED_ITEM_CAP     = Number(process.env.FEED_ITEM_CAP) || 3       // per feed, per run
 
 // Rough but adequate: ~3.5 chars/token for mixed English + Chinese prompts.
 function estimateTokens(text) {
@@ -33,6 +37,7 @@ function estimateTokens(text) {
 export const REDIS_DATA_KEY   = 'brief:live_data'
 export const REDIS_TS_KEY     = 'brief:live_ts'
 export const REDIS_HEALTH_KEY = 'brief:health'   // { ok, at, items?, error? } — last refresh outcome
+export const REDIS_CURSOR_KEY = 'brief:feed_cursor'  // rotates which feeds lead each run
 
 // Record a failed refresh so it's diagnosable / surfaceable in the UI.
 // Best-effort: uses its own Redis client so a half-broken caller can't mask it.
@@ -46,33 +51,47 @@ export async function recordRefreshFailure(error) {
 }
 
 // ── RSS sources ───────────────────────────────────────────────────────────────
-const RSS_FEEDS = [
-  // ── UK ────────────────────────────────────────────────────────────────────
-  'https://feeds.bbci.co.uk/news/technology/rss.xml',           // BBC Technology
-  'https://feeds.bbci.co.uk/news/business/rss.xml',             // BBC Business
-  'https://www.theguardian.com/technology/rss',                  // The Guardian Tech
-  // ── US Tech ───────────────────────────────────────────────────────────────
-  'https://techcrunch.com/feed/',                                // TechCrunch
-  'https://venturebeat.com/category/ai/feed/',                   // VentureBeat AI
-  'https://www.theverge.com/rss/index.xml',                      // The Verge
-  'https://www.wired.com/feed/rss',                              // Wired
-  'https://feeds.arstechnica.com/arstechnica/technology-lab',    // Ars Technica
-  // ── US Finance ────────────────────────────────────────────────────────────
-  'https://feeds.reuters.com/reuters/businessNews',              // Reuters Business
-  'https://feeds.reuters.com/reuters/technologyNews',            // Reuters Technology
-  'https://www.cnbc.com/id/19854910/device/rss/rss.html',       // CNBC Tech
-  // ── Asia (ex-China) ───────────────────────────────────────────────────────
-  'https://asia.nikkei.com/rss/feed/rss',                       // Nikkei Asia (Japan/Asia)
-  // ── China — English-language (accessible from US servers) ─────────────────
-  'https://www.scmp.com/rss/4/feed',                            // SCMP (HK / Asia)
-  'https://www.caixinglobal.com/rss/rss.xml',                    // Caixin Global (finance EN)
-  'https://www.chinadaily.com.cn/rss/index_rss.xml',            // China Daily (gov EN)
-  'https://www.globaltimes.cn/rss/outbrain.xml',                // Global Times (EN)
-  'https://www.cgtn.com/subscribe/rss/section/business.xml',    // CGTN Business (state EN)
-  'https://kr-asia.com/feed',                                    // KrASIA (China/SE-Asia tech EN)
-  'https://technode.com/feed/',                                  // TechNode (China tech EN)
-  // ── China — Chinese-language (may timeout from US; gracefully ignored if blocked) ──
-  'https://36kr.com/feed',                                      // 36氪 (CN tech 中文)
+// region is declared per feed rather than sniffed from the domain: aggregator
+// feeds (Google News topic searches) are China-focused despite a .google.com URL.
+// Every entry here was probed live — dead feeds (Reuters, Nikkei, Caixin Global,
+// China Daily, KrASIA, 36Kr) were silently returning nothing and are removed.
+export const RSS_FEEDS = [
+  // ── China / HK — English ──────────────────────────────────────────────────
+  { url: 'https://www.scmp.com/rss/4/feed',                          region: 'china' },  // SCMP news
+  { url: 'https://www.scmp.com/rss/92/feed',                         region: 'china' },  // SCMP China economy
+  { url: 'https://www.scmp.com/rss/36/feed',                         region: 'china' },  // SCMP tech
+  { url: 'https://www.scmp.com/rss/12/feed',                         region: 'china' },  // SCMP business
+  { url: 'https://www.scmp.com/rss/2/feed',                          region: 'china' },  // SCMP Hong Kong
+  { url: 'https://www.cgtn.com/subscribe/rss/section/china.xml',     region: 'china' },  // CGTN China
+  { url: 'https://www.cgtn.com/subscribe/rss/section/business.xml',  region: 'china' },  // CGTN business
+  { url: 'https://www.globaltimes.cn/rss/outbrain.xml',              region: 'china' },  // Global Times
+  { url: 'https://www.sixthtone.com/rss',                            region: 'china' },  // Sixth Tone (society)
+  { url: 'https://pandaily.com/feed/',                               region: 'china' },  // Pandaily (tech)
+  { url: 'https://technode.com/feed/',                               region: 'china' },  // TechNode (tech)
+  // ── China — Chinese language ──────────────────────────────────────────────
+  { url: 'https://www.ithome.com/rss/',                              region: 'china' },  // IT之家
+  { url: 'https://www.qbitai.com/feed',                              region: 'china' },  // 量子位 (AI)
+  { url: 'https://www.leiphone.com/feed',                            region: 'china' },  // 雷锋网
+  { url: 'https://www.tmtpost.com/rss.xml',                          region: 'china' },  // 钛媒体
+  { url: 'https://www.ifanr.com/feed',                               region: 'china' },  // 爱范儿
+  { url: 'https://sspai.com/feed',                                   region: 'china' },  // 少数派
+  // ── China — aggregator topic searches (broad channel coverage) ────────────
+  { url: 'https://news.google.com/rss/search?q=China+technology&hl=en-US&gl=US&ceid=US:en',                    region: 'china' },
+  { url: 'https://news.google.com/rss/search?q=China+economy&hl=en-US&gl=US&ceid=US:en',                       region: 'china' },
+  { url: 'https://news.google.com/rss/search?q=%E4%B8%AD%E5%9B%BD+%E7%A7%91%E6%8A%80&hl=zh-CN&gl=CN&ceid=CN:zh-Hans', region: 'china' },
+  { url: 'https://news.google.com/rss/search?q=%E4%B8%AD%E5%9B%BD+%E7%BB%8F%E6%B5%8E&hl=zh-CN&gl=CN&ceid=CN:zh-Hans', region: 'china' },
+  { url: 'https://news.google.com/rss/search?q=%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD&hl=zh-CN&gl=CN&ceid=CN:zh-Hans',   region: 'china' },
+  // ── Overseas — UK ─────────────────────────────────────────────────────────
+  { url: 'https://feeds.bbci.co.uk/news/technology/rss.xml',         region: 'overseas' },
+  { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',           region: 'overseas' },
+  { url: 'https://www.theguardian.com/technology/rss',               region: 'overseas' },
+  // ── Overseas — US tech / finance ──────────────────────────────────────────
+  { url: 'https://techcrunch.com/feed/',                             region: 'overseas' },
+  { url: 'https://venturebeat.com/category/ai/feed/',                region: 'overseas' },
+  { url: 'https://www.theverge.com/rss/index.xml',                   region: 'overseas' },
+  { url: 'https://www.wired.com/feed/rss',                           region: 'overseas' },
+  { url: 'https://feeds.arstechnica.com/arstechnica/technology-lab', region: 'overseas' },
+  { url: 'https://www.cnbc.com/id/19854910/device/rss/rss.html',     region: 'overseas' },
 ]
 // Note: 微博、小红书、微信公众号 do not offer public RSS feeds and cannot be polled
 // without private API credentials — only RSS-based sources are supported here.
@@ -94,23 +113,37 @@ function xmlTag(xml, tag) {
   return unCDATA(m?.[1] ?? '')
 }
 
-async function fetchFeed(url) {
+export async function fetchFeed(url) {
   try {
     const r = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AnalystBot/1.0)' },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
     })
     if (!r.ok) { console.warn(`[refresh-data] RSS ${url} → HTTP ${r.status}`); return [] }
     const xml = await r.text()
     const out = []
-    for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
-      const seg   = m[1]
-      const title = xmlTag(seg, 'title')
-      const desc  = xmlTag(seg, 'description').slice(0, 200)
+    // RSS uses <item>, Atom uses <entry>, and either may carry attributes. Matching
+    // only a bare "<item>" silently dropped every Atom feed (e.g. The Verge).
+    for (const m of xml.matchAll(/<(item|entry)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/g)) {
+      const seg   = m[2]
+      let   title = xmlTag(seg, 'title')
+      const desc  = (xmlTag(seg, 'description') || xmlTag(seg, 'summary')).slice(0, 200)
       const link  = xmlTag(seg, 'link') ||
+                    seg.match(/<link[^>]*href=["']([^"']+)["']/i)?.[1] ||
                     seg.match(/<link\s*\/?>[\s\n]*(https?:\/\/[^\s<]+)/)?.[1] || ''
-      if (title) out.push({ title, desc, link })
-      if (out.length >= 3) break   // 3/feed max → forces source diversity in round-robin
+
+      // Aggregators (Google News) hide the publisher behind a redirect URL but name
+      // it in <source url="…">Publisher</source> and as a " - Publisher" title
+      // suffix. Recover it so region, country and attribution stay correct.
+      const srcM       = seg.match(/<source[^>]*url=["']([^"']+)["'][^>]*>([\s\S]*?)<\/source>/i)
+      const originUrl  = srcM?.[1] ?? ''
+      const originName = srcM ? unCDATA(srcM[2]) : ''
+      if (originName && title.endsWith(` - ${originName}`)) {
+        title = title.slice(0, -(originName.length + 3)).trim()
+      }
+
+      if (title) out.push({ title, desc, link, originUrl, originName })
+      if (out.length >= FEED_ITEM_CAP) break   // forces source diversity in round-robin
     }
     return out
   } catch (e) {
@@ -134,6 +167,23 @@ function roundRobin(feedItemArrays, total) {
     if (!added) break   // all feeds exhausted
   }
   return result
+}
+
+// ── Ratio-preserving interleave ──────────────────────────────────────
+// A run only affords a handful of items before the TPM/deadline budget runs out,
+// so the ORDER of targets decides the mix that actually gets generated. Emitting
+// in the target ratio keeps every prefix balanced instead of front-loading one side.
+function interleave(primary, secondary, share) {
+  const out = []
+  let p = 0, sec = 0
+  while (p < primary.length || sec < secondary.length) {
+    const wantPrimary = out.length === 0 || (p / out.length) < share
+    if (wantPrimary && p < primary.length)      out.push(primary[p++])
+    else if (sec < secondary.length)            out.push(secondary[sec++])
+    else if (p < primary.length)                out.push(primary[p++])
+    else break
+  }
+  return out
 }
 
 // ── Week range ────────────────────────────────────────────────────────────────
@@ -160,6 +210,12 @@ const CHINA_DOMAINS = [
   'caixinglobal.com', 'caixin.com', '36kr.com', 'huxiu.com',
   'scmp.com', 'yicai.com', 'kr-asia.com', 'technode.com',
   'sinafinance.com', 'sina.com.cn',
+  // added sources
+  'sixthtone.com', 'pandaily.com', 'ithome.com', 'qbitai.com',
+  'jiqizhixin.com', 'leiphone.com', 'geekpark.net', 'tmtpost.com',
+  'ifanr.com', 'sspai.com', 'pingwest.com', 'cnbeta.com',
+  'people.com.cn', 'chinanews.com', 'thepaper.cn', 'jiemian.com',
+  'stcn.com', 'eastmoney.com', 'ce.cn', 'ckgsb.edu.cn',
 ]
 
 function isChineseDomain(url = '') {
@@ -190,6 +246,23 @@ const FEED_COUNTRY_MAP = [
   ['caixin.com',              'CN'],
   ['36kr.com',                'CN'],
   ['xinhuanet.com',           'CN'],
+  ['sixthtone.com',           'CN'],
+  ['pandaily.com',            'CN'],
+  ['ithome.com',              'CN'],
+  ['qbitai.com',              'CN'],
+  ['jiqizhixin.com',          'CN'],
+  ['leiphone.com',            'CN'],
+  ['geekpark.net',            'CN'],
+  ['tmtpost.com',             'CN'],
+  ['ifanr.com',               'CN'],
+  ['sspai.com',               'CN'],
+  ['pingwest.com',            'CN'],
+  ['people.com.cn',           'CN'],
+  ['chinanews.com',           'CN'],
+  ['thepaper.cn',             'CN'],
+  ['jiemian.com',             'CN'],
+  ['stcn.com',                'CN'],
+  ['eastmoney.com',           'CN'],
 ]
 
 function getFeedCountry(url = '') {
@@ -320,18 +393,29 @@ export async function refreshBriefData() {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error('GROQ_API_KEY not set')
 
-  // 1. Fetch RSS in parallel (5 s timeout keeps total ≤ 5 s)
+  const redisEarly = getRedis()
+
+  // 1. Fetch RSS in parallel
   const feedResults = await Promise.all(
-    RSS_FEEDS.map(async feedUrl => {
+    RSS_FEEDS.map(async ({ url: feedUrl, region }) => {
       const it = await fetchFeed(feedUrl)
-      const isChina = isChineseDomain(feedUrl)
-      return { feedUrl, items: it.map(i => ({ ...i, feedUrl })), isChina }
+      // The feed declares its region; domain-sniffing would misfile aggregators.
+      const isChina = region === 'china'
+      return { feedUrl, items: it.map(i => ({ ...i, feedUrl, feedRegion: region })), isChina }
     })
   )
 
   // Separate by region; keep items grouped per feed for round-robin
-  const chinaFeeds    = feedResults.filter(f => f.isChina)
-  const overseasFeeds = feedResults.filter(f => !f.isChina)
+  let chinaFeeds    = feedResults.filter(f => f.isChina)
+  let overseasFeeds = feedResults.filter(f => !f.isChina)
+
+  // A run generates only a handful of items, so without rotation the same
+  // first-listed feeds win every time and the tail of the list is never reached
+  // (all the Chinese-language and aggregator sources were being starved this way).
+  const cursor = Number(await redisEarly?.get(REDIS_CURSOR_KEY)) || 0
+  const rotate = (arr, k) => arr.length ? [...arr.slice(k % arr.length), ...arr.slice(0, k % arr.length)] : arr
+  chinaFeeds    = rotate(chinaFeeds,    cursor)
+  overseasFeeds = rotate(overseasFeeds, cursor)
   const chinaTotal    = chinaFeeds.reduce((s, f) => s + f.items.length, 0)
   const overseasTotal = overseasFeeds.reduce((s, f) => s + f.items.length, 0)
   console.log(`[refresh-data] fetched china=${chinaTotal} (${chinaFeeds.length} feeds) overseas=${overseasTotal} (${overseasFeeds.length} feeds)`)
@@ -347,15 +431,17 @@ export async function refreshBriefData() {
   // Round-robin picks 1 item per feed per round → maximises source diversity.
   // Target: 10 overseas + 10 China = 20 total.
   // If one side is short, leftover quota fills from the other side.
-  const WANT_OVERSEAS = 10, WANT_CHINA = 10
-  const sliceOverseas = roundRobin(overseasFeeds.map(f => f.items), WANT_OVERSEAS + Math.max(0, WANT_CHINA - chinaTotal))
-  const sliceChina    = roundRobin(chinaFeeds.map(f => f.items),    WANT_CHINA    + Math.max(0, WANT_OVERSEAS - sliceOverseas.length))
-  let targets = [...sliceOverseas, ...sliceChina]
+  const WANT_CHINA    = Math.round(TARGET_ITEMS * CHINA_SHARE)
+  const WANT_OVERSEAS = TARGET_ITEMS - WANT_CHINA
+  // China first: a run only affords a few items, and whichever slice leads gets
+  // generated. Leading with China is what actually raises its share of the brief.
+  const sliceChina    = roundRobin(chinaFeeds.map(f => f.items),    WANT_CHINA    + Math.max(0, WANT_OVERSEAS - overseasTotal))
+  const sliceOverseas = roundRobin(overseasFeeds.map(f => f.items), WANT_OVERSEAS + Math.max(0, WANT_CHINA - sliceChina.length))
+  let targets = interleave(sliceChina, sliceOverseas, CHINA_SHARE)
 
   // Each run can only afford a few items, so generate ones the pool does not have
   // yet — otherwise every run would re-generate the same top headlines and the
   // pool could never fill up.
-  const redisEarly = getRedis()
   let prevNews = []
   if (redisEarly) {
     try {
@@ -553,25 +639,36 @@ STRICT RULES — apply to ALL ${N} items:
   // Inject original RSS URLs + country — model may deviate; URL-based detection is ground-truth.
   rawNews.forEach(({ item, src }) => {
     if (!src) return
-    const articleUrl = src.link    || ''
-    const feedUrl    = src.feedUrl || ''
+    const articleUrl = src.link       || ''
+    const feedUrl    = src.feedUrl    || ''
+    // For aggregator feeds the publisher recovered from <source> is the real origin;
+    // the link itself is a redirect whose domain says nothing about the story.
+    const originUrl  = src.originUrl  || ''
+    const originName = src.originName || ''
 
     // Inject original article URL into sources[0]
     if (articleUrl) {
       if (!Array.isArray(item.sources)) item.sources = []
       if (!item.sources[0]) item.sources[0] = {}
       item.sources[0].url = articleUrl
-      if (!item.sources[0].name) {
+      // Prefer the named publisher over the redirect hostname ("news.google.com").
+      if (originName) {
+        item.sources[0].name = originName
+      } else if (!item.sources[0].name) {
         try { item.sources[0].name = new URL(articleUrl).hostname.replace(/^www\./, '') }
         catch { item.sources[0].name = 'Source' }
       }
     }
 
-    // Override region — never trust model when we know the feed origin
-    if (isChineseDomain(articleUrl) || isChineseDomain(feedUrl)) item.region = 'china'
+    // Override region — the feed's own declaration and the publisher domain both
+    // beat model inference. Aggregator feeds are China-scoped by their query.
+    if (src.feedRegion === 'china' ||
+        isChineseDomain(originUrl) || isChineseDomain(articleUrl) || isChineseDomain(feedUrl)) {
+      item.region = 'china'
+    }
 
-    // Override country from feed origin (beats model inference for known sources)
-    const feedCountry = getFeedCountry(feedUrl) || getFeedCountry(articleUrl)
+    // Override country from the publisher, then the feed (beats model inference)
+    const feedCountry = getFeedCountry(originUrl) || getFeedCountry(feedUrl) || getFeedCountry(articleUrl)
     if (feedCountry) item.country = feedCountry
   })
 
@@ -615,6 +712,8 @@ STRICT RULES — apply to ALL ${N} items:
     await redis.set(REDIS_DATA_KEY,   data)
     await redis.set(REDIS_TS_KEY,     now)
     await redis.set(REDIS_HEALTH_KEY, { ok: true, at: now, items: data.news.length, fresh: items.length })
+    // Advance past the feeds this run consumed so the next one starts further down.
+    await redis.set(REDIS_CURSOR_KEY, cursor + Math.max(1, items.length))
     console.log(`[refresh-data] stored ${data.news.length} items in Redis (${items.length} fresh)`)
   } else {
     console.warn('[refresh-data] Redis not configured')
@@ -628,6 +727,27 @@ export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
+
+  // ?probe=1 — report each feed's live item count without spending any Groq tokens.
+  // Feeds die quietly (Reuters, Caixin, 36Kr all did), so make that directly visible.
+  if (req.query?.probe) {
+    const rows = await Promise.all(RSS_FEEDS.map(async ({ url, region }) => {
+      const t0 = Date.now()
+      const items = await fetchFeed(url)
+      return { url, region, items: items.length, ms: Date.now() - t0, sample: items[0]?.title?.slice(0, 60) ?? null }
+    }))
+    const dead = rows.filter(r => r.items === 0)
+    return res.status(200).json({
+      ok: dead.length === 0,
+      total: rows.length,
+      working: rows.length - dead.length,
+      china:    rows.filter(r => r.region === 'china'    && r.items > 0).length,
+      overseas: rows.filter(r => r.region === 'overseas' && r.items > 0).length,
+      dead: dead.map(r => r.url),
+      rows,
+    })
+  }
+
   try {
     const { data, model, items, stored } = await refreshBriefData()
     return res.status(200).json({ ok: true, items, weekRange: data.weekRange, model, stored })
