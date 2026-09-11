@@ -70,7 +70,7 @@ function buildHTML(lang = 'zh', briefData = {}) {
     isZh ? ({ High: '高影响', Medium: '中影响', Low: '低影响' }[imp])
          : imp
 
-  const articleHTML = newsList.map(item => {
+  const renderArticles = list => list.map(item => {
     const cs = CAT_STYLE[item.category]
     const is = IMPACT_STYLE[item.impact]
     return `
@@ -127,6 +127,31 @@ function buildHTML(lang = 'zh', briefData = {}) {
       </tr>
     </table>`
   }).join('\n')
+
+  // Split into China / Overseas sections to mirror the web layout, which groups by
+  // region. The email had been one flat list, so that split was invisible in it.
+  const chinaList    = newsList.filter(n => n.region === 'china')
+  const overseasList = newsList.filter(n => n.region !== 'china')
+
+  const sectionHeader = (emoji, title, count) => `
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 12px;">
+    <tr>
+      <td style="padding:0;">
+        <span style="font-size:15px;font-weight:800;color:#111827;">${emoji}&nbsp;${title}</span>
+        <span style="font-size:12px;font-weight:600;color:#6b7280;">&nbsp;&nbsp;${count} ${isZh ? '条' : 'stories'}</span>
+      </td>
+    </tr>
+    <tr><td style="padding-top:8px;"><div style="height:2px;background:#e5e7eb;"></div></td></tr>
+  </table>`
+
+  const articleHTML = [
+    chinaList.length
+      ? sectionHeader('🇨🇳', isZh ? '中国要闻' : 'China Developments', chinaList.length) + renderArticles(chinaList)
+      : '',
+    overseasList.length
+      ? sectionHeader('🌍', isZh ? '海外要闻' : 'Overseas Developments', overseasList.length) + renderArticles(overseasList)
+      : '',
+  ].filter(Boolean).join('<div style="height:20px;"></div>')
 
   const synthesisHTML = `
   <table width="100%" cellpadding="0" cellspacing="0"
