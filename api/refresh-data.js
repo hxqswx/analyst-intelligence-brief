@@ -23,11 +23,17 @@ const TOKEN_MARGIN      = 400                // headroom for the model's own acc
 // Vercel kills the function at maxDuration (60s); stop cleanly before that so
 // whatever has been generated still gets stored.
 const DEADLINE_MS       = Number(process.env.REFRESH_DEADLINE_MS) || 50_000
-const TARGET_ITEMS      = Number(process.env.BRIEF_ITEMS) || 20
-// Share of TARGETS drawn from China feeds. The published share ends up lower,
-// because items are classified by subject afterwards and a Chinese outlet's world
-// coverage correctly lands in "overseas" — 0.8 here lands near 65% published.
-const CHINA_SHARE       = Number(process.env.BRIEF_CHINA_SHARE) || 0.8
+// Published composition, enforced when the pool is assembled. A share alone cannot
+// pin this down: items are classified by subject only after generation, so the
+// split is guaranteed at merge time rather than hoped for at selection time.
+const CHINA_ITEMS       = Number(process.env.BRIEF_CHINA_ITEMS)    || 15
+const OVERSEAS_ITEMS    = Number(process.env.BRIEF_OVERSEAS_ITEMS) || 5
+const TARGET_ITEMS      = CHINA_ITEMS + OVERSEAS_ITEMS
+// Share of TARGETS drawn from China feeds. Kept above the published China share
+// because subject classification moves some China-sourced items to "overseas",
+// and the pool needs a surplus of China candidates to keep its quota full.
+const CHINA_SHARE       = Number(process.env.BRIEF_CHINA_SHARE) ||
+                          Math.min(0.85, (CHINA_ITEMS / TARGET_ITEMS) + 0.10)
 const FEED_TIMEOUT_MS   = Number(process.env.FEED_TIMEOUT_MS) || 8000  // several CN feeds need >5s
 const FEED_ITEM_CAP     = Number(process.env.FEED_ITEM_CAP) || 3       // per feed, per run
 
@@ -458,7 +464,7 @@ export async function refreshBriefData() {
   // Target: 10 overseas + 10 China = 20 total.
   // If one side is short, leftover quota fills from the other side.
   const WANT_CHINA    = Math.round(TARGET_ITEMS * CHINA_SHARE)
-  const WANT_OVERSEAS = TARGET_ITEMS - WANT_CHINA
+  const WANT_OVERSEAS = Math.max(1, TARGET_ITEMS - WANT_CHINA)
   // China first: a run only affords a few items, and whichever slice leads gets
   // generated. Leading with China is what actually raises its share of the brief.
   // Spend the China quota on headlines that survive subject classification. Ranking
@@ -724,20 +730,43 @@ STRICT RULES — apply to ALL ${N} items:
   // than shrinking the brief to that batch, merge the fresh items over the previous
   // pool: newest first, deduped by article URL, capped at TARGET_ITEMS. Successive
   // refreshes roll the pool over while it stays full.
-  let merged = items.map(normaliseItem)
-  {
-    const seen = new Set(merged.map(it => it.sources?.[0]?.url).filter(Boolean))
-    for (const old of prevNews) {
-      if (merged.length >= TARGET_ITEMS) break
-      const url = old?.sources?.[0]?.url
+  const fresh = items.map(normaliseItem)
+
+  // Fill each region's quota independently, freshest first, deduped by article URL.
+  // Filling one combined list would let whichever region generated more that run
+  // crowd out the other, so the published split could never be pinned down.
+  const seen   = new Set()
+  const take   = (pool, region, limit) => {
+    const out = []
+    for (const it of pool) {
+      if (out.length >= limit) break
+      if (it?.region !== region) continue
+      const url = it?.sources?.[0]?.url
       if (url && seen.has(url)) continue
       if (url) seen.add(url)
-      merged.push(old)
+      out.push(it)
     }
-    console.log(`[refresh-data] merged ${items.length} fresh + ${merged.length - items.length} carried over`)
+    return out
   }
+
+  const candidates   = [...fresh, ...prevNews]
+  let chinaPicked    = take(candidates, 'china',    CHINA_ITEMS)
+  let overseasPicked = take(candidates, 'overseas', OVERSEAS_ITEMS)
+
+  // If one side is short, let the other use the spare slots so the brief stays full.
+  const spare = TARGET_ITEMS - chinaPicked.length - overseasPicked.length
+  if (spare > 0) {
+    if (chinaPicked.length < CHINA_ITEMS) {
+      overseasPicked = [...overseasPicked, ...take(candidates, 'overseas', spare)]
+    } else {
+      chinaPicked = [...chinaPicked, ...take(candidates, 'china', spare)]
+    }
+  }
+
+  console.log(`[refresh-data] pool: china=${chinaPicked.length}/${CHINA_ITEMS} overseas=${overseasPicked.length}/${OVERSEAS_ITEMS} (${items.length} fresh this run)`)
+
   // Re-rank so id/rank stay sequential after the merge.
-  merged = merged.map((it, i) => ({ ...it, id: i + 1, rank: i + 1 }))
+  let merged = [...chinaPicked, ...overseasPicked].map((it, i) => ({ ...it, id: i + 1, rank: i + 1 }))
 
   // Normalise every field to prevent frontend display bugs
   const data = {
